@@ -1,0 +1,31 @@
+services:
+  # Базы данных
+  auth-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  user-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  # Сервисы
+  authentication-service:
+    build: ./authentication-service
+    ports: ["8081:8081"]
+    depends_on: [auth-db]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/auth_db
+
+  user-service:
+    build: ./user-service
+    ports: ["8080:8080"]
+    depends_on: [user-db, authentication-service]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://user-db:5432/user_db
+      AUTH_SERVICE_URL: http://authentication-service:8081
