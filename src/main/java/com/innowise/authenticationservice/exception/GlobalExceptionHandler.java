@@ -5,18 +5,69 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.security.SignatureException;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(com.innowise.authenticationservice.exception.AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationException(
+            final com.innowise.authenticationservice.exception.AuthenticationException e) {
+        return buildErrorResponse("AUTHENTICATION_ERROR", e.getMessage(), HttpStatus.UNAUTHORIZED);
+    }
+
     @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ErrorResponse> handleAuthenticationException(final AuthenticationException e) {
-        return buildErrorResponse("AUTHENTICATION", e.getMessage(), HttpStatus.UNAUTHORIZED);
+    public ResponseEntity<ErrorResponse> handleSpringAuthenticationException(final AuthenticationException e) {
+        return buildErrorResponse("AUTHENTICATION_ERROR", "Authentication failed: " + e.getMessage(), HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleBadCredentialsException(final BadCredentialsException e) {
+        return buildErrorResponse("BAD_CREDENTIALS", "Invalid login or password", HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDeniedException(final AccessDeniedException e) {
+        return buildErrorResponse("ACCESS_DENIED", "Access denied. Insufficient permissions.", HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(InsufficientAuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleInsufficientAuthenticationException(
+            final InsufficientAuthenticationException e) {
+        return buildErrorResponse("INSUFFICIENT_AUTHENTICATION", "Authentication required", HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(ExpiredJwtException.class)
+    public ResponseEntity<ErrorResponse> handleExpiredJwtException(final ExpiredJwtException e) {
+        return buildErrorResponse("TOKEN_EXPIRED", "JWT token has expired", HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(MalformedJwtException.class)
+    public ResponseEntity<ErrorResponse> handleMalformedJwtException(final MalformedJwtException e) {
+        return buildErrorResponse("INVALID_TOKEN", "Malformed JWT token", HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(SignatureException.class)
+    public ResponseEntity<ErrorResponse> handleSignatureException(final SignatureException e) {
+        return buildErrorResponse("INVALID_TOKEN_SIGNATURE", "Invalid JWT token signature", HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<ErrorResponse> handleJwtException(final JwtException e) {
+        return buildErrorResponse("JWT_ERROR", "JWT processing error: " + e.getMessage(), HttpStatus.UNAUTHORIZED);
     }
 
     @ExceptionHandler(RuntimeException.class)
@@ -57,7 +108,7 @@ public class GlobalExceptionHandler {
 
     // ================= Helper Method =================
     private ResponseEntity<ErrorResponse> buildErrorResponse(String code, String message, HttpStatus status) {
-        ErrorResponse error = new ErrorResponse(code, message);
+        ErrorResponse error = new ErrorResponse(status.value(), message);
         return ResponseEntity.status(status).body(error);
     }
 }

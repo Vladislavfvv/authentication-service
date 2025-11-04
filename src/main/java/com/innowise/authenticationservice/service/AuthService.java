@@ -40,21 +40,20 @@ public class AuthService {
 
     public void register(RegisterRequest registerRequest) {
         if (userRepository.existsByLogin(registerRequest.getLogin())) {
-            throw new RuntimeException("Login already exists");
+            throw new AuthenticationException("Login already exists");
         }
 
-        //Role role = Role.valueOf(registerRequest.getRole().toUpperCase());
         // Валидация роли
         Role role;
         try {
             role = Role.valueOf(registerRequest.getRole().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Invalid role: " + registerRequest.getRole());
+            throw new AuthenticationException("Invalid role: " + registerRequest.getRole());
         }
 
         // Запрещаем создавать ADMIN через публичный endpoint
         if (role == Role.ROLE_ADMIN) {
-            throw new RuntimeException("Cannot register with ADMIN role");
+            throw new AuthenticationException("Cannot register with ADMIN role");
         }
 
         String passwordHash = passwordEncoder.encode(registerRequest.getPassword());
@@ -66,7 +65,7 @@ public class AuthService {
 
     public TokenResponse refreshToken(String refreshToken) {
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            throw new RuntimeException("Invalid refresh token");
+            throw new AuthenticationException("Invalid refresh token");
         }
 
         String username = jwtTokenProvider.getUsernameFromToken(refreshToken);
@@ -74,7 +73,7 @@ public class AuthService {
         Role role = Role.valueOf(roleStr);
 
         User user = userRepository.findByLogin(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new AuthenticationException("User not found"));
 
         String newAccessToken = jwtTokenProvider.generateAccessToken(user.getLogin(), user.getRole());
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getLogin(), user.getRole());
