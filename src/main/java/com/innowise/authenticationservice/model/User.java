@@ -12,15 +12,15 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
 @Table(name = "users")
 @Getter
 @Setter
-@NoArgsConstructor
+@AllArgsConstructor
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,6 +42,17 @@ public class User {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    public User() {
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public User(String login, String passwordHash, Role role) {
+        this();
+        this.login = login;
+        this.passwordHash = passwordHash;
+        this.role = role;
+    }
 
     @PreUpdate
     public void preUpdate() {
