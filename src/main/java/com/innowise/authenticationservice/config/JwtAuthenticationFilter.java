@@ -16,6 +16,10 @@ import com.innowise.authenticationservice.security.JwtTokenProvider;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
 
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
+        this.jwtTokenProvider = jwtTokenProvider;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -24,20 +28,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = getTokenFromRequest(request);
 
         if (token != null && jwtTokenProvider.validateToken(token)) {
-            String username = jwtTokenProvider.getUsernameFromToken(token);
-            String role = jwtTokenProvider.getRoleFromToken(token);
+            try {
+                String username = jwtTokenProvider.getUsernameFromToken(token);
+                String role = jwtTokenProvider.getRoleFromToken(token);
 
-            UsernamePasswordAuthenticationToken auth =
-                    new UsernamePasswordAuthenticationToken(username, null,
-                            Collections.singletonList(new SimpleGrantedAuthority(role)));
-            SecurityContextHolder.getContext().setAuthentication(auth);
+                UsernamePasswordAuthenticationToken auth =
+                        new UsernamePasswordAuthenticationToken(username, null,
+                                Collections.singletonList(new SimpleGrantedAuthority(role)));
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            } catch (Exception e) {
+                // Invalid token - clear context
+                SecurityContextHolder.clearContext();
+            }
         }
 
-        try {
-            filterChain.doFilter(request, response);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        filterChain.doFilter(request, response);
     }
 
     private String getTokenFromRequest(HttpServletRequest request) {
