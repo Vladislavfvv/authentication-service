@@ -1,5 +1,8 @@
 package com.innowise.authenticationservice.service;
 
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.innowise.authenticationservice.dto.LoginRequest;
@@ -12,17 +15,27 @@ import com.innowise.authenticationservice.model.User;
 import com.innowise.authenticationservice.repository.UserRepository;
 import com.innowise.authenticationservice.security.JwtTokenProvider;
 import com.innowise.authenticationservice.security.PasswordEncoder;
-
-import lombok.AllArgsConstructor;
+import com.innowise.authenticationservice.service.KeycloakService;
 
 @Service
 @Transactional
-@AllArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final Optional<KeycloakService> keycloakService;
+
+    @Autowired
+    public AuthService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtTokenProvider jwtTokenProvider,
+                       Optional<KeycloakService> keycloakService) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.keycloakService = keycloakService;
+    }
 
     public TokenResponse login(LoginRequest loginRequest) {
         User user = userRepository.findByLogin(loginRequest.getLogin())
@@ -61,6 +74,17 @@ public class AuthService {
         User user = new User(registerRequest.getLogin(), passwordHash, role);
 
         userRepository.save(user);
+
+        // Создание пользователя в Keycloak (если Keycloak доступен)
+        keycloakService.ifPresent(service -> {
+            try {
+                service.createUser(registerRequest.getLogin(), registerRequest.getPassword(), role);
+            } catch (Exception e) {
+                // Логируем ошибку, но не прерываем регистрацию
+                // В production лучше использовать proper logging
+                System.err.println("Failed to create user in Keycloak: " + e.getMessage());
+            }
+        });
     }
 
     public TokenResponse refreshToken(String refreshToken) {

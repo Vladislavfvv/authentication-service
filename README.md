@@ -8,6 +8,7 @@
 - Spring Boot 3.5.6
 - Spring Security
 - JWT (JJWT)
+- Keycloak (опционально) для управления пользователями и SSO
 - PostgreSQL
 - BCrypt для хеширования паролей
 - Docker
@@ -114,6 +115,19 @@ docker-compose up --build
 ```
 
 Сервис будет доступен на порту 8081.
+
+### Настройка Keycloak (опционально)
+
+Если используется Keycloak, выполните следующие шаги:
+
+1. Дождитесь запуска Keycloak (порт 8090)
+2. Войдите в Admin Console: `http://localhost:8090` (admin/admin)
+3. Создайте Realm `authentication-service`
+4. Создайте Client `authentication-service-client` с включенной Client authentication
+5. Создайте роли `ROLE_USER` и `ROLE_ADMIN` в Realm
+6. Скопируйте Client Secret и обновите переменные окружения
+
+Подробная инструкция в файле `KEYCLOAK_SETUP.md`
 
 ## Конфигурация
 

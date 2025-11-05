@@ -4,6 +4,8 @@ import java.util.Date;
 import javax.crypto.SecretKey;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.stereotype.Component;
 import com.innowise.authenticationservice.model.Role;
 import io.jsonwebtoken.Claims;
@@ -26,8 +28,22 @@ public class JwtTokenProvider {
     @Value("${jwt.refresh.expiration}")
     private long refreshExpiration;
 
+    @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri:}")
+    private String jwkSetUri;
+
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
+    }
+
+    /**
+     * JWT Decoder для Keycloak токенов
+     */
+    public JwtDecoder getJwtDecoder() {
+        if (jwkSetUri != null && !jwkSetUri.isEmpty()) {
+            return NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        }
+        // Fallback на HMAC декодер для собственных токенов
+        return null;
     }
 
     public String generateAccessToken(String username, Role role) {
