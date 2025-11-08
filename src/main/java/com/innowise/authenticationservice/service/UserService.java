@@ -8,24 +8,6 @@ import org.springframework.web.client.RestTemplate;
 import com.innowise.authenticationservice.dto.TokenValidationResponse;
 
 public class UserService {
-//    @Bean
-//    public RestTemplate restTemplate() {
-//        return new RestTemplate();
-//    }
-//
-//    // Для валидации токена
-//    public boolean validateToken(String token) {
-//        try {
-//            ResponseEntity<TokenValidationResponse> response = restTemplate.postForEntity(
-//                    "http://authentication-service:8081/auth/validate?token=" + token,
-//                    null, TokenValidationResponse.class
-//            );
-//            return response.getBody() != null && response.getBody().isValid();
-//        } catch (Exception e) {
-//            return false;
-//        }
-//    }
-
     public UserService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
