@@ -15,7 +15,6 @@ import com.innowise.authenticationservice.model.User;
 import com.innowise.authenticationservice.repository.UserRepository;
 import com.innowise.authenticationservice.security.JwtTokenProvider;
 import com.innowise.authenticationservice.security.PasswordEncoder;
-import com.innowise.authenticationservice.service.KeycloakService;
 
 @Service
 @Transactional
