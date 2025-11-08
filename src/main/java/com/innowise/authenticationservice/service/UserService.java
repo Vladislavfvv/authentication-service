@@ -25,6 +25,7 @@ public class UserService {
             );
 
             TokenValidationResponse validation = response.getBody();
+            
             return validation != null &&
                    validation.isValid() &&
                    validation.getUsername().equals(requiredLogin);
