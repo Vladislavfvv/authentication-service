@@ -27,15 +27,16 @@ public class AuthService {
 
     @Autowired
     public AuthService(UserRepository userRepository,
-                       PasswordEncoder passwordEncoder,
-                       JwtTokenProvider jwtTokenProvider,
-                       Optional<KeycloakService> keycloakService) {
+                       PasswordEncoder passwordEncoder,//кодирует пароли пользователей
+                       JwtTokenProvider jwtTokenProvider,//генерирует и валидирует JWT токены
+                       Optional<KeycloakService> keycloakService) {//сервис для интеграции с Keycloak
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.keycloakService = keycloakService;
     }
 
+    
     public TokenResponse login(LoginRequest loginRequest) {
         User user = userRepository.findByLogin(loginRequest.getLogin())
                 .orElseThrow(() -> new AuthenticationException("Invalid login or password"));
@@ -49,6 +50,7 @@ public class AuthService {
 
         return new TokenResponse(accessToken, refreshToken, jwtTokenProvider.getJwtExpiration());
     }
+
 
     public void register(RegisterRequest registerRequest) {
         if (userRepository.existsByLogin(registerRequest.getLogin())) {
@@ -68,7 +70,7 @@ public class AuthService {
             throw new AuthenticationException("Cannot register with ADMIN role");
         }
 
-        String passwordHash = passwordEncoder.encode(registerRequest.getPassword());
+        String passwordHash = passwordEncoder.encode(registerRequest.getPassword());//кодируем пароль пользователя
 
         User user = new User(registerRequest.getLogin(), passwordHash, role);
 
