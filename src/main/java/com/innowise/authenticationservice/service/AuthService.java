@@ -2,6 +2,8 @@ package com.innowise.authenticationservice.service;
 
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final Optional<KeycloakService> keycloakService;
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     @Autowired
     public AuthService(UserRepository userRepository,
@@ -75,15 +78,13 @@ public class AuthService {
         User user = new User(registerRequest.getLogin(), passwordHash, role);
 
         userRepository.save(user);
-
+        log.info("Registered user: " + user.getLogin());
         // Создание пользователя в Keycloak (если Keycloak доступен)
         keycloakService.ifPresent(service -> {
             try {
                 service.createUser(registerRequest.getLogin(), registerRequest.getPassword(), role);
             } catch (Exception e) {
-                // Логируем ошибку, но не прерываем регистрацию
-                // В production лучше использовать proper logging
-                System.err.println("Failed to create user in Keycloak: " + e.getMessage());
+                log.error("Failed to create user {} in Keycloak: {}", registerRequest.getLogin(), e.getMessage(), e);
             }
         });
     }
@@ -100,8 +101,8 @@ public class AuthService {
         User user = userRepository.findByLogin(username)
                 .orElseThrow(() -> new AuthenticationException("User not found"));
 
-        String newAccessToken = jwtTokenProvider.generateAccessToken(user.getLogin(), user.getRole());
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getLogin(), user.getRole());
+        String newAccessToken = jwtTokenProvider.generateAccessToken(user.getLogin(), role);
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getLogin(), role);
 
         return new TokenResponse(newAccessToken, newRefreshToken, jwtTokenProvider.getJwtExpiration());
     }

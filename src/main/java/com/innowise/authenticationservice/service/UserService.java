@@ -13,7 +13,7 @@ public class UserService {
     }
 
     private final RestTemplate restTemplate;
-
+//Валидация доступа пользователя к ресурсу
     public boolean validateUserAccess(String authHeader, String requiredLogin) {
         try {
             // Вызов Auth Service через header

@@ -15,6 +15,7 @@ import com.innowise.authenticationservice.security.JwtTokenProvider;
 
 //кастомный фильтр безопасности обеспечивает автоматическую аутентификацию всех запросов, 
 //которые несут валидный JWT в заголовке Authorization (Bearer токен)
+
 //Вытягивает токен из заголовка Authorization (ищет Bearer <JWT>).
 //Проверяет его через JwtTokenProvider.validateToken(token).
 //Если токен валиден:
