@@ -3,10 +3,8 @@ services:
   auth-db:
     image: postgres:16
     container_name: auth_db
-    environment:
-      POSTGRES_DB: auth_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+    env_file:
+      - env/auth-db.env
     ports:
       - "5433:5432"
     volumes:
@@ -20,22 +18,13 @@ services:
       timeout: 5s
       retries: 10
 
-  # Keycloak
+#  # Keycloak container
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.1
     container_name: keycloak-innowise
     command: start-dev
-    environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak
-      KC_HOSTNAME_STRICT: false
-      KC_HOSTNAME_STRICT_HTTPS: false
-      KC_HTTP_ENABLED: true
-      KC_HOSTNAME_URL: http://localhost:8090
+    env_file:
+      - env/keycloak.env
     ports:
       - "8090:8080"
     depends_on:
@@ -51,13 +40,43 @@ services:
       retries: 10
       start_period: 60s
 
+  # ==========================
+  # Keycloak (production mode) - not work now
+  # ==========================
+#  keycloak:
+#    image: quay.io/keycloak/keycloak:25.0.1
+#    container_name: keycloak-innowise
+#    depends_on:
+#      keycloak-db:
+#        condition: service_healthy
+#    env_file:
+#      - env/keycloak.env
+#    command:
+#      - start
+#      - --optimized
+#      - --hostname-strict=false
+#      - --http-enabled=true
+#      - --spi-login-protocol-openid-connect-legacy-logout-redirect-uri=true
+#    ports:
+#      - "8090:8080"
+#      - "9000:9000" # management port (опционально)
+#    restart: unless-stopped
+#    networks:
+#      - backend-network
+#    healthcheck:
+#      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/8080' || exit 1"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 10
+#      start_period: 60s
+
+
+  # Keycloak DB
   keycloak-db:
     image: postgres:16
     container_name: keycloak_db
-    environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak
+    env_file:
+      - env/keycloak-db.env
     volumes:
       - keycloak_db_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -75,6 +94,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: authentication-service
+    env_file:
+      - env/auth-service.env
     ports:
       - "8081:8081"
     depends_on:
@@ -82,27 +103,19 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/auth_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-      KEYCLOAK_SERVER_URL: http://keycloak:8080
-      KEYCLOAK_REALM: authentication-service
-      KEYCLOAK_CLIENT_ID: authentication-service-client
-      KEYCLOAK_CLIENT_SECRET: authentication-service-secret
     networks:
       - backend-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8081/auth/login || exit 1"]
+      #test: ["CMD-SHELL", "curl -f http://localhost:8081/auth/login || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 90s
 
 volumes:
-  auth_db_data:
-  user_db_data:
+  auth_db_data: 
   keycloak_db_data:
 
 networks:

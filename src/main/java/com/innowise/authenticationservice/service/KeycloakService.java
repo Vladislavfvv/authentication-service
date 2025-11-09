@@ -4,10 +4,13 @@ import jakarta.ws.rs.core.Response;
 
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -19,11 +22,14 @@ import java.util.Collections;
 import java.util.List;
 
 @Service
-@ConditionalOnBean(Keycloak.class)
+@ConditionalOnBean(Keycloak.class)//KeycloakService будет зарегистрирован только если Keycloak доступен
+//KeycloakService для интеграции с Keycloak
 public class KeycloakService {
 
-    private final Keycloak keycloak;
-    private final String realm;
+    private static final Logger log = LoggerFactory.getLogger(KeycloakService.class);
+
+    private final Keycloak keycloak;//Keycloak клиент для взаимодействия с Keycloak сервером
+    private final String realm;//Realm Keycloak
 
     @Autowired
     public KeycloakService(Keycloak keycloak, @Value("${keycloak.realm:}") String realm) {
@@ -41,22 +47,60 @@ public class KeycloakService {
         UserRepresentation user = new UserRepresentation();
         user.setUsername(username);
         user.setEnabled(true);
-        user.setEmail(username + "@example.com");
+        user.setEmail(username);
+        //user.setEmail(username + "@example.com");
+        user.setEmailVerified(true);
+        user.setRequiredActions(Collections.emptyList());
 
-        // Создание пользователя
+        String userId = null;
         Response response = usersResource.create(user);
-        String userId = getCreatedId(response);
+        try {
+            int status = response.getStatus();
+            if (status >= 300) {
+                log.error("Keycloak createUser status: {} {}. Body: {}", status, response.getStatusInfo(), response.readEntity(String.class));
+                throw new RuntimeException("Failed to create user in Keycloak");
+            }
 
-        // Установка пароля
-        CredentialRepresentation credential = new CredentialRepresentation();
-        credential.setType(CredentialRepresentation.PASSWORD);
-        credential.setValue(password);
-        credential.setTemporary(false);
-        usersResource.get(userId).resetPassword(credential);
+            log.info("Keycloak createUser status: {}", status);
 
-        // Назначение роли
-        RoleRepresentation roleRepresentation = realmResource.roles().get(role.name()).toRepresentation();
-        usersResource.get(userId).roles().realmLevel().add(Collections.singletonList(roleRepresentation));
+            userId = getCreatedId(response);
+
+            UserResource userResource = usersResource.get(userId);
+
+            // Синхронизируем профиль, подтверждаем email и убираем обязательные действия
+            UserRepresentation kcUser = userResource.toRepresentation();
+            kcUser.setEmail(user.getEmail());
+            kcUser.setEmailVerified(true);
+            kcUser.setEnabled(true);
+            kcUser.setRequiredActions(Collections.emptyList());
+            userResource.update(kcUser);
+
+            // Установка постоянного пароля
+            CredentialRepresentation credential = new CredentialRepresentation();
+            credential.setType(CredentialRepresentation.PASSWORD);
+            credential.setValue(password);
+            credential.setTemporary(false);
+            userResource.resetPassword(credential);
+
+            // Назначение роли
+            RoleRepresentation roleRepresentation = realmResource.roles().get(role.name()).toRepresentation();
+            if (roleRepresentation == null) {
+                throw new RuntimeException("Role " + role.name() + " not found in Keycloak realm " + realm);
+            }
+            userResource.roles().realmLevel().add(Collections.singletonList(roleRepresentation));
+
+            UserRepresentation verified = userResource.toRepresentation();
+            log.info("Keycloak user {} created. emailVerified={}, requiredActions={}",
+                    username,
+                    verified.isEmailVerified(),
+                    verified.getRequiredActions());
+        } finally {
+            response.close();
+        }
+
+        if (userId == null) {
+            throw new IllegalStateException("Keycloak user identifier was not generated");
+        }
 
         return userId;
     }
