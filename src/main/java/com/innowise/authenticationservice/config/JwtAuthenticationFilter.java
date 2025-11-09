@@ -13,6 +13,16 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 import com.innowise.authenticationservice.security.JwtTokenProvider;
 
+//кастомный фильтр безопасности обеспечивает автоматическую аутентификацию всех запросов, 
+//которые несут валидный JWT в заголовке Authorization (Bearer токен)
+//Вытягивает токен из заголовка Authorization (ищет Bearer <JWT>).
+//Проверяет его через JwtTokenProvider.validateToken(token).
+//Если токен валиден:
+//Достаёт логин (getUsernameFromToken) и роль (getRoleFromToken).
+//Создаёт объект UsernamePasswordAuthenticationToken с найденной ролью.
+//Помещает его в SecurityContextHolder, тем самым помечая запрос как аутентифицированный.
+//Если токен отсутствует или невалиден, фильтр ничего не «аутентифицирует». Контекст остаётся пустым, и остальные компоненты воспринимают запрос как анонимный.
+//В конце всегда вызывает filterChain.doFilter, чтобы передать управление дальше.
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
 

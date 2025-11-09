@@ -15,40 +15,55 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.innowise.authenticationservice.security.JwtTokenProvider;
 
 @Configuration
+//Spring Security конфигурация для аутентификации и авторизации
 @EnableWebSecurity
 public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
+    //JwtTokenProvider для генерации и валидации JWT токенов
 
     public SecurityConfig(JwtTokenProvider jwtTokenProvider) {
         this.jwtTokenProvider = jwtTokenProvider;
     }
-
+    //SecurityFilterChain для настройки безопасности HTTP запросов
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                //CORS для разрешения запросов из разных доменов
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                //CSRF для защиты от межсайтовых запросов
                 .csrf(csrf -> csrf.disable())
+                //Сессии в состоянии без сохранения состояния (stateless)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                //Авторизация HTTP запросов
                 .authorizeHttpRequests(auth -> auth
+                        //Разрешаем доступ к эндпоинтам без аутентификации
                         .requestMatchers("/auth/login", "/auth/register", "/auth/create-token", "/auth/refresh").permitAll()
                         .requestMatchers("/auth/**").authenticated()
                         .anyRequest().authenticated()
-                )
+                )//Фильтр для аутентификации JWT токенов
                 .addFilterBefore(jwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     @Bean
+    //Фильтр для аутентификации JWT токенов
     public JwtAuthenticationFilter jwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
         return new JwtAuthenticationFilter(jwtTokenProvider);
     }
 
     @Bean
+    //CORS для разрешения запросов из разных доменов
+    //Разрешаем все методы, заголовки и креды для всех путей
+    //Создаем CorsConfigurationSource для настройки CORS
     public CorsConfigurationSource corsConfigurationSource() {
+        //Создаем CorsConfiguration для настройки CORS
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*")); // В production укажите конкретные домены
+        //Разрешаем все домены в production указать конкретные домены
+        configuration.setAllowedOriginPatterns(List.of("*")); 
+        //Разрешаем все методы
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        //Разрешаем все заголовки
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
