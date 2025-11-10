@@ -40,7 +40,7 @@ public class KeycloakService {
     /**
      * Создание пользователя в Keycloak
      */
-    public String createUser(String username, String password, Role role) {
+    public String createUser(String username, String password, Role role, String firstName, String lastName) {
         RealmResource realmResource = keycloak.realm(realm);
         UsersResource usersResource = realmResource.users();
 
@@ -48,9 +48,10 @@ public class KeycloakService {
         user.setUsername(username);
         user.setEnabled(true);
         user.setEmail(username);
-        //user.setEmail(username + "@example.com");
         user.setEmailVerified(true);
         user.setRequiredActions(Collections.emptyList());
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
 
         String userId = null;
         Response response = usersResource.create(user);
@@ -73,6 +74,8 @@ public class KeycloakService {
             kcUser.setEmailVerified(true);
             kcUser.setEnabled(true);
             kcUser.setRequiredActions(Collections.emptyList());
+            kcUser.setFirstName(firstName);
+            kcUser.setLastName(lastName);
             userResource.update(kcUser);
 
             // Установка постоянного пароля

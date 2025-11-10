@@ -75,14 +75,26 @@ public class AuthService {
 
         String passwordHash = passwordEncoder.encode(registerRequest.getPassword());//кодируем пароль пользователя
 
-        User user = new User(registerRequest.getLogin(), passwordHash, role);
+        User user = new User(
+                registerRequest.getLogin(),
+                passwordHash,
+                role,
+                registerRequest.getFirstName(),
+                registerRequest.getLastName()
+        );
 
         userRepository.save(user);
-        log.info("Registered user: " + user.getLogin());
+        log.info("Registered user: {}", user.getLogin());
         // Создание пользователя в Keycloak (если Keycloak доступен)
         keycloakService.ifPresent(service -> {
             try {
-                service.createUser(registerRequest.getLogin(), registerRequest.getPassword(), role);
+                service.createUser(
+                        registerRequest.getLogin(),
+                        registerRequest.getPassword(),
+                        role,
+                        registerRequest.getFirstName(),
+                        registerRequest.getLastName()
+                );
             } catch (Exception e) {
                 log.error("Failed to create user {} in Keycloak: {}", registerRequest.getLogin(), e.getMessage(), e);
             }
