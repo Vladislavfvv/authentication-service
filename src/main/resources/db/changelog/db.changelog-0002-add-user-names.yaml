@@ -1,0 +1,21 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-add-user-names
+      author: Filimontsev_VV
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: first_name
+                  type: varchar(255)
+                  defaultValue: ''
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_name
+                  type: varchar(255)
+                  defaultValue: ''
+                  constraints:
+                    nullable: false
+
