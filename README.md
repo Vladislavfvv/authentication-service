@@ -34,7 +34,13 @@
 
 ### 4. Создание администратора по умолчанию
 
-Начиная с текущей версии, администратор `admin@tut.by` создаётся автоматически при первом старте `docker-compose` (скрипт лежит в `docker/init/auth-db/01-create-admin.sql`). Если нужно переинициализировать пользователя вручную, выполните команды ниже:
+Начиная с текущей версии, администратор `admin@tut.by` создаётся автоматически при первом старте `docker-compose`:
+
+- `authentication-service`: скрипт `docker/init/auth-db/01-create-admin.sql`
+- `user-service`: скрипт `userService/docker-entrypoint-initdb.d/02-seed-admin.sql`
+- Keycloak realm `authentication-service`: импорт `keycloak/import/authentication-service-realm.json`
+
+Если нужно переинициализировать пользователя вручную, выполните команды ниже:
 
 ```bash
 docker exec -i auth_db psql -U postgres -d auth_db <<'SQL'

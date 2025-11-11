@@ -23,11 +23,13 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.1
     container_name: keycloak-innowise
-    command: start-dev
+    command: start-dev --import-realm
     env_file:
       - env/keycloak.env
     ports:
       - "8090:8080"
+    volumes:
+      - ./keycloak/import:/opt/keycloak/data/import
     depends_on:
       keycloak-db:
         condition: service_healthy
