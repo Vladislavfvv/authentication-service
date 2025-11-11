@@ -8,9 +8,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.innowise.authenticationservice.dto.LoginRequest;
+import com.innowise.authenticationservice.dto.LogoutRequest;
 import com.innowise.authenticationservice.dto.RegisterRequest;
 import com.innowise.authenticationservice.dto.TokenResponse;
 import com.innowise.authenticationservice.dto.TokenValidationResponse;
+import com.innowise.authenticationservice.dto.UpdateUserProfileRequest;
 import com.innowise.authenticationservice.exception.AuthenticationException;
 import com.innowise.authenticationservice.model.Role;
 import com.innowise.authenticationservice.model.User;
@@ -41,7 +43,9 @@ public class AuthService {
 
     
     public TokenResponse login(LoginRequest loginRequest) {
-        User user = userRepository.findByLogin(loginRequest.getLogin())
+        String normalizedLogin = normalizeLogin(loginRequest.getLogin());
+
+        User user = userRepository.findByLogin(normalizedLogin != null ? normalizedLogin : loginRequest.getLogin())
                 .orElseThrow(() -> new AuthenticationException("Invalid login or password"));
 
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPasswordHash())) {
@@ -56,7 +60,9 @@ public class AuthService {
 
 
     public void register(RegisterRequest registerRequest) {
-        if (userRepository.existsByLogin(registerRequest.getLogin())) {
+        String normalizedLogin = normalizeLogin(registerRequest.getLogin());
+
+        if (userRepository.existsByLogin(normalizedLogin)) {
             throw new AuthenticationException("Login already exists");
         }
 
@@ -76,7 +82,7 @@ public class AuthService {
         String passwordHash = passwordEncoder.encode(registerRequest.getPassword());//кодируем пароль пользователя
 
         User user = new User(
-                registerRequest.getLogin(),
+                normalizedLogin,
                 passwordHash,
                 role,
                 registerRequest.getFirstName(),
@@ -89,7 +95,7 @@ public class AuthService {
         keycloakService.ifPresent(service -> {
             try {
                 service.createUser(
-                        registerRequest.getLogin(),
+                        normalizedLogin,
                         registerRequest.getPassword(),
                         role,
                         registerRequest.getFirstName(),
@@ -97,6 +103,40 @@ public class AuthService {
                 );
             } catch (Exception e) {
                 log.error("Failed to create user {} in Keycloak: {}", registerRequest.getLogin(), e.getMessage(), e);
+            }
+        });
+    }
+
+    public void updateUserProfile(UpdateUserProfileRequest request) {
+        String requestedCurrentLogin = request.currentLogin() == null ? null : request.currentLogin().trim();
+        String normalizedCurrentLogin = normalizeLogin(request.currentLogin());
+        String newLogin = normalizeLogin(request.newLogin());
+
+        User user = userRepository.findByLogin(requestedCurrentLogin)
+                .or(() -> userRepository.findByLogin(normalizedCurrentLogin))
+                .orElse(null);
+
+        if (user == null) {
+            log.warn("Skip profile sync: user {} not found in authentication-service", requestedCurrentLogin);
+            return;
+        }
+
+        String previousLogin = user.getLogin();
+
+        if (!previousLogin.equalsIgnoreCase(newLogin) && userRepository.existsByLogin(newLogin)) {
+            throw new AuthenticationException("Login already exists");
+        }
+
+        user.setLogin(newLogin);
+        user.setFirstName(request.firstName());
+        user.setLastName(request.lastName());
+        userRepository.save(user);
+
+        keycloakService.ifPresent(service -> {
+            try {
+                service.updateUserProfile(previousLogin, newLogin, request.firstName(), request.lastName());
+            } catch (Exception e) {
+                log.error("Failed to synchronize authentication profile for {}: {}", previousLogin, e.getMessage());
             }
         });
     }
@@ -119,6 +159,15 @@ public class AuthService {
         return new TokenResponse(newAccessToken, newRefreshToken, jwtTokenProvider.getJwtExpiration());
     }
 
+    public void logout(LogoutRequest request) {
+        if (!jwtTokenProvider.validateToken(request.accessToken())) {
+            throw new AuthenticationException("Invalid access token");
+        }
+        if (!jwtTokenProvider.validateToken(request.refreshToken())) {
+            throw new AuthenticationException("Invalid refresh token");
+        }
+    }
+
 
     public TokenValidationResponse validateToken(String token) {
         try {
@@ -131,5 +180,9 @@ public class AuthService {
         } catch (Exception e) {
             return new TokenValidationResponse(false, null, null);
         }
+    }
+
+    private String normalizeLogin(String login) {
+        return login == null ? null : login.trim().toLowerCase();
     }
 }

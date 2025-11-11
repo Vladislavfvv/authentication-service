@@ -14,7 +14,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.zaxxer.hikari.HikariDataSource;
-
+//конфигурация DataSource для подключения к PostgreSQL
+//использует HikariCP для управления пулом соединений
+//автоматически создаёт базу данных, если она не существует
+//используется в application.properties для настройки пула соединений
+//используется в application-test.properties для настройки пула соединений в тестовом окружении
+//используется в application-dev.properties для настройки пула соединений в разработческом окружении
+//используется в application-prod.properties для настройки пула соединений в производственном окружении
+//Spring создаст бин HikariDataSource.
+//Перед этим класс проверит, существует ли база, и при необходимости создаст её.
+//Настроенный пул HikariCP будет использоваться приложением во всех DAO/репозиториях.
 @Configuration
 public class DataSourceConfig {
 

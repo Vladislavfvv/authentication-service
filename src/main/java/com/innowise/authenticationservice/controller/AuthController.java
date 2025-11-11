@@ -2,17 +2,23 @@ package com.innowise.authenticationservice.controller;
 
 import jakarta.validation.Valid;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.innowise.authenticationservice.dto.LoginRequest;
 import com.innowise.authenticationservice.dto.RefreshTokenRequest;
 import com.innowise.authenticationservice.dto.RegisterRequest;
+import com.innowise.authenticationservice.dto.LogoutRequest;
 import com.innowise.authenticationservice.dto.TokenResponse;
 import com.innowise.authenticationservice.dto.TokenValidationRequest;
 import com.innowise.authenticationservice.dto.TokenValidationResponse;
+import com.innowise.authenticationservice.dto.UpdateUserProfileRequest;
+import com.innowise.authenticationservice.exception.AuthenticationException;
 import com.innowise.authenticationservice.service.AuthService;
 
 @RestController
@@ -20,9 +26,12 @@ import com.innowise.authenticationservice.service.AuthService;
 public class AuthController {
 
     private final AuthService authService;
+    private final String internalApiKey;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService,
+                          @Value("${internal.api.key:}") String internalApiKey) {
         this.authService = authService;
+        this.internalApiKey = internalApiKey;
     }
 
     @PostMapping("/login")
@@ -72,5 +81,22 @@ public class AuthController {
             @Valid @RequestBody TokenValidationRequest request) {
         TokenValidationResponse validationResponse = authService.validateToken(request.getToken());
         return ResponseEntity.ok(validationResponse);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
+        authService.logout(request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/users/profile")
+    public ResponseEntity<Void> updateUserProfile(
+            @RequestHeader("X-Internal-Api-Key") String apiKey,
+            @Valid @RequestBody UpdateUserProfileRequest request) {
+        if (internalApiKey == null || internalApiKey.isBlank() || !internalApiKey.equals(apiKey)) {
+            throw new AuthenticationException("Invalid internal API key");
+        }
+        authService.updateUserProfile(request);
+        return ResponseEntity.noContent().build();
     }
 }

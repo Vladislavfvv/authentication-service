@@ -140,6 +140,28 @@ public class KeycloakService {
     }
 
     /**
+     * Обновление профиля пользователя (логин, имя, фамилия)
+     */
+    public void updateUserProfile(String currentLogin, String newLogin, String firstName, String lastName) {
+        RealmResource realmResource = keycloak.realm(realm);
+        UsersResource usersResource = realmResource.users();
+
+        List<UserRepresentation> users = usersResource.search(currentLogin);
+        if (users.isEmpty()) {
+            throw new RuntimeException("User " + currentLogin + " not found in Keycloak");
+        }
+
+        UserResource userResource = usersResource.get(users.get(0).getId());
+        UserRepresentation representation = userResource.toRepresentation();
+        representation.setUsername(newLogin);
+        representation.setEmail(newLogin);
+        representation.setFirstName(firstName);
+        representation.setLastName(lastName);
+        representation.setEnabled(true);
+        userResource.update(representation);
+    }
+
+    /**
      * Проверка существования пользователя в Keycloak
      */
     public boolean userExists(String username) {

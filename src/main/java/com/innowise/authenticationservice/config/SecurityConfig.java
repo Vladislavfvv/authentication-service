@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -38,6 +39,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         //Разрешаем доступ к эндпоинтам без аутентификации
                         .requestMatchers("/auth/login", "/auth/register", "/auth/create-token", "/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/auth/users/profile").permitAll()
                         .requestMatchers("/auth/**").authenticated()
                         .anyRequest().authenticated()
                 )//Фильтр для аутентификации JWT токенов
