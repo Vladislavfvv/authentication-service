@@ -145,8 +145,9 @@ jobs:
       - name: Push Docker image
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         run: |
-          docker tag authentication-service:latest ghcr.io/${{ github.repository_owner }}/authentication-service:latest
-          docker push ghcr.io/${{ github.repository_owner }}/authentication-service:latest
+          IMAGE_NAME=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker tag authentication-service:latest ghcr.io/${IMAGE_NAME}/authentication-service:latest
+          docker push ghcr.io/${IMAGE_NAME}/authentication-service:latest
 
 
 
