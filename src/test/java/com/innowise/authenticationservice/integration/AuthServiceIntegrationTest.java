@@ -6,12 +6,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import com.innowise.authenticationservice.client.UserServiceClient;
 import com.innowise.authenticationservice.dto.LoginRequest;
 import com.innowise.authenticationservice.dto.RegisterRequest;
 import com.innowise.authenticationservice.dto.TokenResponse;
@@ -19,6 +21,9 @@ import com.innowise.authenticationservice.exception.AuthenticationException;
 import com.innowise.authenticationservice.model.Role;
 import com.innowise.authenticationservice.repository.UserRepository;
 import com.innowise.authenticationservice.service.AuthService;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -52,6 +57,9 @@ class AuthServiceIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @MockBean
+    private UserServiceClient userServiceClient; // Мокируем user-service клиент, чтобы не вызывать реальный сервис
+
     //для теста данные
     private static final String LOGIN = "integration@example.com";
     private static final String PASSWORD = "secret";
@@ -59,6 +67,8 @@ class AuthServiceIntegrationTest {
     @BeforeEach
     void setUp() {// Очистка таблицы перед каждым тестом
         userRepository.deleteAll();
+        // Мокируем вызов userServiceClient.createUser(), чтобы он не выбрасывал исключение
+        doNothing().when(userServiceClient).createUser(anyString(), anyString(), anyString());
     }
 
     @AfterEach
