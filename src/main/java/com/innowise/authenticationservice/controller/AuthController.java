@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -97,6 +99,21 @@ public class AuthController {
             throw new AuthenticationException("Invalid internal API key");
         }
         authService.updateUserProfile(request);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Удаление пользователя по email (логину) из auth_db и Keycloak
+     * Защищено внутренним API ключом
+     */
+    @DeleteMapping("/users/{email}")
+    public ResponseEntity<Void> deleteUser(
+            @RequestHeader("X-Internal-Api-Key") String apiKey,
+            @PathVariable String email) {
+        if (internalApiKey == null || internalApiKey.isBlank() || !internalApiKey.equals(apiKey)) {
+            throw new AuthenticationException("Invalid internal API key");
+        }
+        authService.deleteUser(email);
         return ResponseEntity.noContent().build();
     }
 }

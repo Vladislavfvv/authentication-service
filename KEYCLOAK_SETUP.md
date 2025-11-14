@@ -357,7 +357,7 @@ grant_type: client_credentials
 3. Проверьте, что userService использует `external: true` для сети в docker-compose.yml
 4. Проверьте, что Keycloak доступен из userService:
    ```bash
-   docker exec user_service curl http://keycloak:8080/health
+   docker exec user-service curl http://keycloak:8080/health
    ```
 5. Убедитесь, что в `application-docker.properties` userService указан правильный URL:
    ```properties
@@ -470,7 +470,7 @@ Authorization: Bearer <ваш_токен_из_шага_1>
 3. **Проверьте логи userService:**
 
 ```bash
-docker logs user_service
+docker logs user-service
 ```
 
 Вы должны увидеть успешную аутентификацию и авторизацию.

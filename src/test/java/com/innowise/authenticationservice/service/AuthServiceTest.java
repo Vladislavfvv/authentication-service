@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,6 +31,7 @@ import com.innowise.authenticationservice.model.User;
 import com.innowise.authenticationservice.repository.UserRepository;
 import com.innowise.authenticationservice.security.JwtTokenProvider;
 import com.innowise.authenticationservice.security.PasswordEncoder;
+import com.innowise.authenticationservice.client.UserServiceClient;
 
 @ExtendWith(MockitoExtension.class)//автоматически инициализирует поля, помеченные @Mock
 class AuthServiceTest {
@@ -62,6 +64,9 @@ class AuthServiceTest {
     @Mock
     private KeycloakService keycloakService;
 
+    @Mock
+    private UserServiceClient userServiceClient;
+
     private AuthService authService;
 
     @BeforeEach//Каждый тест получает свежий экземпляр AuthService со статическими моками
@@ -70,7 +75,8 @@ class AuthServiceTest {
                 userRepository,
                 passwordEncoder,
                 jwtTokenProvider,
-                Optional.of(keycloakService) //сервис может работать с Keycloak (в некоторых конфигурациях Keycloak может отсутствовать — тогда туда передаем empty)
+                Optional.of(keycloakService), //сервис может работать с Keycloak (в некоторых конфигурациях Keycloak может отсутствовать — тогда туда передаем empty)
+                Optional.of(userServiceClient) //клиент для синхронизации с user-service
         );
     }
 
@@ -146,16 +152,16 @@ class AuthServiceTest {
     @Nested
     class RegisterTests {
         @Test
-        @DisplayName("register persists user and syncs with Keycloak")
+        @DisplayName("register persists user and syncs with Keycloak and user-service")
         @SuppressWarnings("null")//подавление предупреждения компилятора, связанного с потенциальными null-значениями
-        void registerSuccess() {//вызывает userRepository.save() с корректной сущностью и синхронизирует пользователя с Keycloak
+        void registerSuccess() {//вызывает userRepository.save() с корректной сущностью и синхронизирует пользователя с Keycloak и user-service
             RegisterRequest request = new RegisterRequest(LOGIN, PASSWORD, "firstname", "lastname", "ROLE_USER");
 
             when(userRepository.existsByLogin(LOGIN)).thenReturn(false);//нет конфликта логина
             when(passwordEncoder.encode(PASSWORD)).thenReturn(PASSWORD_HASH);//поведение кодировщика
             when(userRepository.save(any(User.class))).thenAnswer((Answer<User>) invocation -> {//перехватывает аргумент (сохраняемого User) и проверяет его поля (assert внутри thenAnswer).
                 //Mockito и Answer<User> — обобщённый тип? Компилятор не может гарантировать, что invocation.getArgument(0, User.class) не вернёт null.
-                //Поэтому он предупреждает: “возможен null при разыменовании”/ ручную проверяем assertNotNull(savedUser); и уверен, что null не будет
+                //Поэтому он предупреждает: "возможен null при разыменовании"/ ручную проверяем assertNotNull(savedUser); и уверен, что null не будет
                 //thenAnswer используется вместо простого thenReturn, чтобы протестировать, какую сущность сервис пытается сохранить (а не только что вызов был)
                 User savedUser = invocation.getArgument(0, User.class);
                 assertNotNull(savedUser);
@@ -165,6 +171,8 @@ class AuthServiceTest {
                 assertEquals(Role.ROLE_USER, savedUser.getRole());
                 return savedUser;
             });
+            // Мокируем вызов userServiceClient.createUser() чтобы он не выбрасывал исключение
+            doNothing().when(userServiceClient).createUser(any(String.class), any(String.class), any(String.class));
 
             authService.register(request);
 
@@ -172,6 +180,12 @@ class AuthServiceTest {
                     eq(LOGIN),
                     eq(PASSWORD),
                     eq(Role.ROLE_USER),
+                    eq("firstname"),
+                    eq("lastname")
+            );
+            // Проверяем, что userServiceClient.createUser() был вызван
+            verify(userServiceClient).createUser(
+                    eq(LOGIN),
                     eq("firstname"),
                     eq("lastname")
             );
@@ -190,9 +204,10 @@ class AuthServiceTest {
             verify(keycloakService, never()).createUser(any(), any(), any(), any(), any());//способ проверить, что определённый метод был вызван (или не был вызван) на мок-объекте (mock) в ходе теста
             //аналог - verify(keycloakService, times(0)).createUser(any(), any(), any(), any(), any())
             //keycloakService — это мок (замокированный объект)
-            //never() - верификационный режим, который означает “ожидаем 0 вызовов”. Альтернатива — times(0)
-            //any() - матчер (matcher) — он говорит Mockito: “мне всё равно, что передавалось в аргумент, подойдёт любое значение этого типа”
+            //never() - верификационный режим, который означает "ожидаем 0 вызовов". Альтернатива — times(0)
+            //any() - матчер (matcher) — он говорит Mockito: "мне всё равно, что передавалось в аргумент, подойдёт любое значение этого типа"
             // ИТОГО: в данном случаеп проверка метода createUser() - убеждаемся, что он не вызывался неважно какие аргументы были переданы
+            verify(userServiceClient, never()).createUser(any(), any(), any());//проверяем, что userServiceClient.createUser() также не был вызван
         }
 
         @Test

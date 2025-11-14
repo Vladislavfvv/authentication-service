@@ -19,6 +19,7 @@ import com.innowise.authenticationservice.model.User;
 import com.innowise.authenticationservice.repository.UserRepository;
 import com.innowise.authenticationservice.security.JwtTokenProvider;
 import com.innowise.authenticationservice.security.PasswordEncoder;
+import com.innowise.authenticationservice.client.UserServiceClient;
 
 @Service
 @Transactional
@@ -28,17 +29,20 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final Optional<KeycloakService> keycloakService;
+    private final Optional<UserServiceClient> userServiceClient;
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     @Autowired
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,//кодирует пароли пользователей
                        JwtTokenProvider jwtTokenProvider,//генерирует и валидирует JWT токены
-                       Optional<KeycloakService> keycloakService) {//сервис для интеграции с Keycloak
+                       Optional<KeycloakService> keycloakService,//сервис для интеграции с Keycloak
+                       Optional<UserServiceClient> userServiceClient) {//клиент для синхронизации с user-service
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.keycloakService = keycloakService;
+        this.userServiceClient = userServiceClient;
     }
 
     
@@ -91,6 +95,7 @@ public class AuthService {
 
         userRepository.save(user);
         log.info("Registered user: {}", user.getLogin());
+        
         // Создание пользователя в Keycloak (если Keycloak доступен)
         keycloakService.ifPresent(service -> {
             try {
@@ -103,6 +108,19 @@ public class AuthService {
                 );
             } catch (Exception e) {
                 log.error("Failed to create user {} in Keycloak: {}", registerRequest.getLogin(), e.getMessage(), e);
+            }
+        });
+        
+        // Создание пользователя в user-service (если клиент доступен)
+        userServiceClient.ifPresent(client -> {
+            try {
+                client.createUser(
+                        normalizedLogin,
+                        registerRequest.getFirstName(),
+                        registerRequest.getLastName()
+                );
+            } catch (Exception e) {
+                log.error("Failed to create user {} in user-service: {}", registerRequest.getLogin(), e.getMessage(), e);
             }
         });
     }
@@ -123,18 +141,25 @@ public class AuthService {
 
         String previousLogin = user.getLogin();
 
-        if (!previousLogin.equalsIgnoreCase(newLogin) && userRepository.existsByLogin(newLogin)) {
-            throw new AuthenticationException("Login already exists");
+        // Логин нельзя изменить после регистрации - проверяем, что newLogin совпадает с currentLogin
+        if (!normalizedCurrentLogin.equalsIgnoreCase(newLogin)) {
+            log.warn("Attempt to change login from {} to {} rejected. Login cannot be changed after registration.", 
+                    normalizedCurrentLogin, newLogin);
+            // Не изменяем логин, только имя и фамилию
         }
 
-        user.setLogin(newLogin);
+        // Обновляем только имя и фамилию, логин не изменяем
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
+        // Явно обновляем updatedAt, чтобы гарантировать, что поле всегда обновляется при синхронизации
+        user.setUpdatedAt(java.time.LocalDateTime.now());
         userRepository.save(user);
+        log.info("Updated user profile for {}: firstName={}, lastName={}", user.getLogin(), user.getFirstName(), user.getLastName());
 
         keycloakService.ifPresent(service -> {
             try {
-                service.updateUserProfile(previousLogin, newLogin, request.firstName(), request.lastName());
+                // Передаем одинаковый логин (не изменяем)
+                service.updateUserProfile(previousLogin, previousLogin, request.firstName(), request.lastName());
             } catch (Exception e) {
                 log.error("Failed to synchronize authentication profile for {}: {}", previousLogin, e.getMessage());
             }
@@ -180,6 +205,29 @@ public class AuthService {
         } catch (Exception e) {
             return new TokenValidationResponse(false, null, null);
         }
+    }
+
+    /**
+     * Удаление пользователя по email (логину) из auth_db и Keycloak
+     */
+    public void deleteUser(String email) {
+        String normalizedLogin = normalizeLogin(email);
+        
+        // Удаление из локальной БД (auth_db)
+        userRepository.findByLogin(normalizedLogin).ifPresent(user -> {
+            userRepository.delete(user);
+            log.info("Deleted user {} from auth_db", normalizedLogin);
+        });
+        
+        // Удаление из Keycloak (если Keycloak доступен)
+        keycloakService.ifPresent(service -> {
+            try {
+                service.deleteUser(normalizedLogin);
+                log.info("Deleted user {} from Keycloak", normalizedLogin);
+            } catch (Exception e) {
+                log.error("Failed to delete user {} from Keycloak: {}", normalizedLogin, e.getMessage(), e);
+            }
+        });
     }
 
     private String normalizeLogin(String login) {

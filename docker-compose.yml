@@ -99,6 +99,9 @@ services:
     container_name: authentication-service
     env_file:
       - env/auth-service.env
+    environment:
+      - USER_SERVICE_BASE_URL=http://user-service:8080
+      - USER_SERVICE_INTERNAL_API_KEY=user-service-internal-key
     ports:
       - "8081:8081"
     depends_on:
