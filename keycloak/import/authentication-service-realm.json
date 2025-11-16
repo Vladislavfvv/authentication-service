@@ -5,8 +5,11 @@
   "sslRequired": "NONE",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
+  "registrationEmailAsUsername": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "verifyEmail": false,
   "roles": {
     "realm": [
       {
@@ -27,7 +30,7 @@
     {
       "clientId": "authentication-service-client",
       "name": "authentication-service-client",
-      "secret": "authentication-service-secret",
+      "secret": "n3mJkSY8O1HDhLZGz4sOmHnmgd6SAM5t",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
@@ -93,6 +96,7 @@
       "emailVerified": true,
       "firstName": "Admin",
       "lastName": "User",
+      "requiredActions": [],
       "realmRoles": [
         "ROLE_ADMIN"
       ],

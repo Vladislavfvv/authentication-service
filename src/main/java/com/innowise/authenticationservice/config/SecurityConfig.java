@@ -40,6 +40,8 @@ public class SecurityConfig {
                         //Разрешаем доступ к эндпоинтам без аутентификации
                         .requestMatchers("/auth/login", "/auth/register", "/auth/create-token", "/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/auth/users/profile").permitAll()
+                        // Actuator health endpoint доступен без аутентификации
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/auth/**").authenticated()
                         .anyRequest().authenticated()
                 )//Фильтр для аутентификации JWT токенов

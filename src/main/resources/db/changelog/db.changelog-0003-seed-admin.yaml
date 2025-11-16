@@ -1,0 +1,27 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0003-seed-admin
+      author: System
+      changes:
+        - sql:
+            sql: |
+              -- Seed default administrator account for authentication-service.
+              -- Пароль: admin
+              -- BCrypt hash для пароля "admin" (сила 10)
+              INSERT INTO users (id, login, password_hash, role, first_name, last_name, created_at)
+              VALUES (
+                  1,
+                  'admin@tut.by',
+                  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+                  'ROLE_ADMIN',
+                  'Admin',
+                  'User',
+                  NOW()
+              )
+              ON CONFLICT (login) DO NOTHING;
+              
+              -- Сбрасываем последовательность, чтобы следующий ID был 2 (если админ уже существует)
+              SELECT setval('users_id_seq', 
+                  GREATEST((SELECT MAX(id) FROM users), 1), 
+                  false);
+
