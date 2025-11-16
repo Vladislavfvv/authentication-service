@@ -1,53 +1,57 @@
-# Автоматическая настройка Keycloak
+# Настройка Keycloak
 
-## Зачем нужны два скрипта?
+## Автоматическая настройка через JSON импорт
 
-1. **`setup-keycloak.ps1`** - PowerShell скрипт для Windows
-2. **`keycloak-setup.sh`** - Bash скрипт для Linux/Mac
+Keycloak настраивается **автоматически** при первом запуске через импорт realm из файла:
+- `keycloak/import/authentication-service-realm.json`
 
-Оба скрипта делают одно и то же - автоматически настраивают Keycloak, создавая:
+При запуске `docker compose up` Keycloak автоматически импортирует:
 - Realm `authentication-service`
 - Роли `ROLE_USER` и `ROLE_ADMIN`
-- Client `authentication-service-client`
+- Client `authentication-service-client` (с service account)
 - Client `user-service-client`
+- Администратора `admin@tut.by` с ролью `ROLE_ADMIN`
 
-## Использование
+## Назначение Service Account ролей
 
-### Windows (PowerShell):
-```powershell
-powershell -ExecutionPolicy Bypass -File setup-keycloak.ps1
+**Важно**: После первого запуска Keycloak необходимо назначить service account роли для `authentication-service-client`, так как Keycloak не поддерживает назначение этих ролей через JSON импорт.
+
+### Способ 1: Python скрипт (рекомендуется)
+
+```bash
+python setup-service-account-roles.py
 ```
 
-### Linux/Mac (Bash):
+### Способ 2: PowerShell скрипт
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup-service-account-roles.ps1
+```
+
+### Способ 3: Вручную через Admin Console
+
+1. Откройте http://localhost:8090/admin
+2. Войдите как `admin` / `admin`
+3. Выберите realm `authentication-service`
+4. Перейдите: **Clients** → `authentication-service-client` → **Service account roles**
+5. Нажмите **Assign role** → **Filter by clients** → выберите `realm-management`
+6. Выберите роли: `manage-users`, `view-users`, `manage-realm`
+7. Нажмите **Assign**
+
+После назначения ролей **перезапустите** `authentication-service`:
 ```bash
-chmod +x keycloak-setup.sh
-./keycloak-setup.sh
+docker compose restart authentication-service
 ```
 
 ## Требования
 
 - Keycloak должен быть запущен и доступен на `http://localhost:8090`
-- Для bash скрипта требуется `jq` (JSON parser): `sudo apt-get install jq` или `brew install jq`
+- Для Python скрипта требуется библиотека `requests`: `pip install requests`
 
-## Что делает скрипт?
+## Подробная документация
 
-1. Ожидает готовности Keycloak
-2. Получает токен администратора
-3. Создает realm `authentication-service` (если не существует)
-4. Создает роли `ROLE_USER` и `ROLE_ADMIN` (если не существуют)
-5. Создает clients с правильными настройками
-6. Выводит Client Secret для каждого созданного client
-
-## Важно
-
-- Client Secret генерируется автоматически Keycloak при создании client
-- Скрипт выводит сгенерированные секреты в консоль
-- Сохраните эти секреты для использования в приложении
-
-## Альтернатива
-
-Если скрипты не работают, можно настроить Keycloak вручную через Admin Console:
-1. Откройте http://localhost:8090
-2. Войдите как `admin` / `admin`
-3. Следуйте инструкциям в `KEYCLOAK_SETUP.md`
+Для детальной информации о настройке Keycloak см.:
+- `STARTUP_INSTRUCTIONS.md` - пошаговая инструкция по запуску
+- `QUICK_START.md` - быстрый старт
+- `KEYCLOAK_SETUP.md` - детальная настройка Keycloak
 

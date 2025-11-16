@@ -31,10 +31,38 @@ public class KeycloakConfig {
     @Value("${keycloak.client.secret}")
     private String clientSecret;
 
+    // Auth type: client (default) or admin
+    @Value("${keycloak.auth.type:client}")
+    private String authType;
+
+    // Admin credentials (optional)
+    @Value("${keycloak.admin.username:}")
+    private String adminUsername;
+
+    @Value("${keycloak.admin.password:}")
+    private String adminPassword;
+
+    @Value("${keycloak.admin.realm:master}")
+    private String adminRealm;
+
     @Bean
     public Keycloak keycloak() {
-        return KeycloakBuilder.builder()
-                .serverUrl(keycloakServerUrl)
+        KeycloakBuilder builder = KeycloakBuilder.builder()
+                .serverUrl(keycloakServerUrl);
+
+        if ("admin".equalsIgnoreCase(authType) && !adminUsername.isEmpty() && !adminPassword.isEmpty()) {
+            // Use admin username/password to obtain token via password grant against master realm
+            return builder
+                    .realm(adminRealm)
+                    .clientId("admin-cli")
+                    .username(adminUsername)
+                    .password(adminPassword)
+                    .grantType("password")
+                    .build();
+        }
+
+        // Default: client credentials (requires service account with realm-management roles)
+        return builder
                 .realm(realm)
                 .clientId(clientId)
                 .clientSecret(clientSecret)
