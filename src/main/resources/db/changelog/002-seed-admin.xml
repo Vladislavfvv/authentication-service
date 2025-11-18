@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                       https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="002-seed-admin" author="vlad" runOnChange="true">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="users" schemaName="public"/>
+        </preConditions>
+
+        <comment>Проверка и создание администратора (admin@tut.by / admin) при каждом запуске</comment>
+
+        <sql>
+            -- Вставляем админа только если его еще нет по login
+            -- Пароль: admin (захеширован с помощью BCrypt, cost factor 10)
+            -- Для генерации нового hash используйте: new BCryptPasswordEncoder().encode("admin")
+            -- Этот hash соответствует паролю "admin"
+            INSERT INTO public.users (login, password_hash, role, created_at)
+            SELECT 
+                'admin@tut.by',
+                '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+                'ROLE_ADMIN',
+                CURRENT_TIMESTAMP
+            WHERE NOT EXISTS (SELECT 1 FROM public.users WHERE login = 'admin@tut.by');
+            
+            -- Сбрасываем последовательность, чтобы следующий ID был MAX(id) + 1
+            -- Используем COALESCE для случая, когда таблица пуста
+            SELECT setval('users_id_seq', 
+                GREATEST(COALESCE((SELECT MAX(id) FROM public.users), 0), 1), 
+                true);
+        </sql>
+
+    </changeSet>
+</databaseChangeLog>
+
