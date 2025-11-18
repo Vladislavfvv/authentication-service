@@ -25,73 +25,20 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
 
     public TokenResponse login(LoginRequest loginRequest) {
-        User user = userRepository.findByLogin(loginRequest.getLogin())
-                .orElseThrow(() -> new AuthenticationException("Invalid login or password"));
 
-        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPasswordHash())) {
-            throw new AuthenticationException("Invalid login or password");
-        }
-
-        String accessToken = jwtTokenProvider.generateAccessToken(user.getLogin(), user.getRole());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getLogin(), user.getRole());
-
-        return new TokenResponse(accessToken, refreshToken, jwtTokenProvider.getJwtExpiration());
+        return null;
     }
 
-    public void register(RegisterRequest registerRequest) {
-        if (userRepository.existsByLogin(registerRequest.getLogin())) {
-            throw new AuthenticationException("Login already exists");
-        }
-
-        // Валидация роли
-        Role role;
-        try {
-            role = Role.valueOf(registerRequest.getRole().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new AuthenticationException("Invalid role: " + registerRequest.getRole());
-        }
-
-        // Запрещаем создавать ADMIN через публичный endpoint
-        if (role == Role.ROLE_ADMIN) {
-            throw new AuthenticationException("Cannot register with ADMIN role");
-        }
-
-        String passwordHash = passwordEncoder.encode(registerRequest.getPassword());
-
-        User user = new User(registerRequest.getLogin(), passwordHash, role);
-
-        userRepository.save(user);
+    public TokenResponse register(RegisterRequest registerRequest) {
+       return null;
     }
 
     public TokenResponse refreshToken(String refreshToken) {
-        if (!jwtTokenProvider.validateToken(refreshToken)) {
-            throw new AuthenticationException("Invalid refresh token");
-        }
-
-        String username = jwtTokenProvider.getUsernameFromToken(refreshToken);
-        String roleStr = jwtTokenProvider.getRoleFromToken(refreshToken);
-        Role role = Role.valueOf(roleStr);
-
-        User user = userRepository.findByLogin(username)
-                .orElseThrow(() -> new AuthenticationException("User not found"));
-
-        String newAccessToken = jwtTokenProvider.generateAccessToken(user.getLogin(), user.getRole());
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getLogin(), user.getRole());
-
-        return new TokenResponse(newAccessToken, newRefreshToken, jwtTokenProvider.getJwtExpiration());
+       return null;
     }
 
 
     public TokenValidationResponse validateToken(String token) {
-        try {
-            if (jwtTokenProvider.validateToken(token)) {
-                String username = jwtTokenProvider.getUsernameFromToken(token);
-                String role = jwtTokenProvider.getRoleFromToken(token);
-                return new TokenValidationResponse(true, username, role);
-            }
-            return new TokenValidationResponse(false, null, null);
-        } catch (Exception e) {
-            return new TokenValidationResponse(false, null, null);
-        }
+     return null;
     }
 }
