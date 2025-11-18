@@ -1,4 +1,4 @@
-FROM openjdk:21-jdk-slim
+FROM eclipse-temurin:21-jdk
 VOLUME /tmp
 ARG JAR_FILE=target/authentication-service-*.jar
 COPY ${JAR_FILE} app.jar
