@@ -52,11 +52,18 @@ public class AuthService {
         }
 
         // Валидация роли
+        // Поддерживаем как "USER"/"ADMIN", так и "ROLE_USER"/"ROLE_ADMIN"
+        String roleStr = registerRequest.getRole().toUpperCase().trim();
+        if (!roleStr.startsWith("ROLE_")) {
+            roleStr = "ROLE_" + roleStr;
+        }
+        
         Role role;
         try {
-            role = Role.valueOf(registerRequest.getRole().toUpperCase());
+            role = Role.valueOf(roleStr);
         } catch (IllegalArgumentException e) {
-            throw new AuthenticationException("Invalid role: " + registerRequest.getRole());
+            throw new AuthenticationException("Invalid role: " + registerRequest.getRole() + 
+                    ". Valid values: USER, ADMIN, ROLE_USER, ROLE_ADMIN");
         }
 
         // Запрещаем создавать ADMIN через публичный endpoint

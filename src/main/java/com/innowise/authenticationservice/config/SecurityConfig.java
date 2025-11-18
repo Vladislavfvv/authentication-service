@@ -23,11 +23,6 @@ public class SecurityConfig {
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
-    /**
-     * Настраивает Security Filter Chain для работы с JWT токенами.
-     * Публичные endpoints: /auth/login, /auth/register, /auth/create-token, /auth/refresh
-     * Остальные endpoints требуют аутентификации.
-     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -35,9 +30,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/login", "/auth/register", "/auth/create-token", "/auth/refresh").permitAll()
+                        .requestMatchers("/auth/v1/login", "/auth/v1/register", "/auth/v1/create-token", "/auth/v1/refresh").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                        .requestMatchers("/auth/**").authenticated()
+                        .requestMatchers("/auth/v1/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
@@ -48,9 +43,6 @@ public class SecurityConfig {
     /**
      * Создает JWT Authentication Filter для обработки JWT токенов в запросах.
      * Фильтр извлекает токен из заголовка Authorization и устанавливает аутентификацию в SecurityContext.
-     * 
-     * @param jwtTokenProvider провайдер для работы с JWT токенами
-     * @return JwtAuthenticationFilter
      */
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
@@ -59,9 +51,7 @@ public class SecurityConfig {
 
     /**
      * Настраивает CORS (Cross-Origin Resource Sharing) для разрешения запросов с других доменов.
-     * В production следует указать конкретные домены вместо "*".
-     * 
-     * @return CorsConfigurationSource с настройками CORS
+     * В production следует указать конкретные домены вместо "*". 
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
