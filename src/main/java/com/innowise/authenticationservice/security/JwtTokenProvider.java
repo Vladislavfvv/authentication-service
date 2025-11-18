@@ -14,30 +14,39 @@ import io.jsonwebtoken.security.Keys;
 
 import lombok.Getter;
 
+//Этот компонент отвечает за создание и валидацию JSON Web Token (JWT).
+//Используется библиотека io.jsonwebtoken (JJWT)
 @Component
 public class JwtTokenProvider {
+    //Симметричный секрет, которым подписываются токены (HS256).
     @Value("${jwt.secret}")
     private String jwtSecret;
 
+    //Срок действия access токена в миллисекундах.
     @Getter
     @Value("${jwt.expiration}")
     private long jwtExpiration;
 
+    //Срок действия refresh токена в миллисекундах.
     @Value("${jwt.refresh.expiration}")
     private long refreshExpiration;
 
+    //Генерация симметричного ключа для подписи токенов.
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
+    //Генерация access токена.
     public String generateAccessToken(String username, Role role) {
         return generateToken(username, role, jwtExpiration);
     }
 
+    //Генерация refresh токена.
     public String generateRefreshToken(String username, Role role) {
         return generateToken(username, role, refreshExpiration);
     }
 
+    //Генерация токена.
     private String generateToken(String username, Role role, long jwtExpiration) {
         Date now = new Date();
         Date expireDate = new Date(now.getTime() + jwtExpiration);
@@ -51,6 +60,7 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    //Валидация токена.
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder()

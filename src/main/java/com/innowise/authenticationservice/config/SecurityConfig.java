@@ -23,16 +23,20 @@ public class SecurityConfig {
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
+    /**
+     * Настраивает Security Filter Chain для работы с JWT токенами.
+     * Публичные endpoints: /auth/login, /auth/register, /auth/create-token, /auth/refresh
+     * Остальные endpoints требуют аутентификации.
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .and()
-                .csrf().disable()
-                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                .and()
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login", "/auth/register", "/auth/create-token", "/auth/refresh").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/auth/**").authenticated()
                         .anyRequest().authenticated()
                 )
@@ -41,11 +45,24 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Создает JWT Authentication Filter для обработки JWT токенов в запросах.
+     * Фильтр извлекает токен из заголовка Authorization и устанавливает аутентификацию в SecurityContext.
+     * 
+     * @param jwtTokenProvider провайдер для работы с JWT токенами
+     * @return JwtAuthenticationFilter
+     */
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
         return new JwtAuthenticationFilter(jwtTokenProvider);
     }
 
+    /**
+     * Настраивает CORS (Cross-Origin Resource Sharing) для разрешения запросов с других доменов.
+     * В production следует указать конкретные домены вместо "*".
+     * 
+     * @return CorsConfigurationSource с настройками CORS
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
