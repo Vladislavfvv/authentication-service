@@ -321,3 +321,62 @@ docker inspect user-service | grep -A 10 Networks
 
 какие образы есть в системе:
 docker images | Select-String -Pattern "authentication|auth"
+
+
+
+
+
+
+
+
+
+
+
+
+
+1. Как настроены JWT токены
+Authentication-service (генерация токенов):
+Секретный ключ: jwt.secret=mySecretKeyForJWTGenerationInAuthenticationService2025
+Access токен: 15 минут
+Refresh токен: 24 часа
+Алгоритм: HS256 (HMAC SHA-256)
+User-service (валидация токенов):
+Использует тот же секретный ключ (критически важно)
+Spring Security OAuth2 Resource Server автоматически валидирует токены
+Извлекает роль из токена для проверки прав доступа
+2. Полный flow работы
+Регистрация:
+1. POST /auth/v1/register → получаете токены2. POST /api/v1/users/self с токеном → создаете профиль
+Вход:
+1. POST /auth/v1/login → получаете токены2. Используете токен для всех запросов к user-service
+Использование API:
+Все запросы к user-service требуют заголовок:Authorization: Bearer {accessToken}
+3. Кто что может делать
+Без токена (публичные endpoints):
+/auth/v1/register - регистрация
+/auth/v1/login - вход
+/auth/v1/refresh - обновление токена
+/actuator/health - health check
+С токеном (защищенные endpoints):
+ROLE_USER и ROLE_ADMIN: все /api/v1/users/** и /api/v1/cards/**
+Только ROLE_ADMIN: /api/cache/**
+4. Важные моменты
+Секретный ключ должен совпадать в обоих сервисах
+В токене нет userId, используется email из claim sub
+authentication-service не создает пользователя в user-service — пользователь делает это сам через /api/v1/users/self
+Access токен живет 15 минут, затем используйте refresh токен
+5. Примеры запросов
+
+Регистрация:
+POST http://localhost:8081/auth/v1/register
+{  "login": "user@example.com",  "password": "password123",  "role": "USER"}
+Получаете accessToken и refreshToken
+
+Создание профиля:
+POST http://localhost:8082/api/v1/users/selfAuthorization: 
+Bearer {accessToken}{  "name": "Roma",  "surname": "Romanov"}
+Email автоматически берется из токена!
+
+Получение пользователя:
+GET http://localhost:8082/api/v1/users/email?email=user@example.comAuthorization: 
+Bearer {accessToken}→ Возвращает данные пользователя
