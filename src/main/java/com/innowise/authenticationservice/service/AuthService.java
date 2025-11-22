@@ -39,14 +39,12 @@ public class AuthService {
     }
 
     /**
-     * Регистрирует пользователя в auth_db и возвращает JWT токены.
-     * Пользователь должен самостоятельно вызвать user-service для создания профиля,
-     * используя полученный токен.
+     * Регистрирует пользователя в auth_db.
+     * После регистрации пользователь должен войти через /auth/v1/login для получения токенов.
      * 
      * @param registerRequest данные для регистрации (login, password, role)
-     * @return TokenResponse с access и refresh токенами
      */
-    public TokenResponse register(RegisterRequest registerRequest) {
+    public void register(RegisterRequest registerRequest) {
         if (userRepository.existsByLogin(registerRequest.getLogin())) {
             throw new AuthenticationException("Login already exists");
         }
@@ -76,12 +74,6 @@ public class AuthService {
         User user = new User(registerRequest.getLogin(), passwordHash, role);
 
         userRepository.save(user);
-
-        // Генерируем токены для пользователя, чтобы он мог самостоятельно создать профиль в user-service
-        String accessToken = jwtTokenProvider.generateAccessToken(user.getLogin(), user.getRole());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getLogin(), user.getRole());
-
-        return new TokenResponse(accessToken, refreshToken, jwtTokenProvider.getJwtExpiration());
     }
 
     /**

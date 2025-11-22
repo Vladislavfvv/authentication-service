@@ -3,6 +3,7 @@ services:
   auth_db:
     image: postgres:16
     container_name: auth_db
+    restart: always
     environment:
       POSTGRES_DB: auth_db
       POSTGRES_USER: postgres
@@ -40,7 +41,7 @@ services:
 networks:
   backend-network:
     name: backend-network
-    driver: bridge
+    external: true
 
 volumes:
   auth_db_data:

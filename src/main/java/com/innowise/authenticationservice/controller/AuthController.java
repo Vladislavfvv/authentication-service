@@ -15,6 +15,10 @@ import com.innowise.authenticationservice.dto.TokenValidationRequest;
 import com.innowise.authenticationservice.dto.TokenValidationResponse;
 import com.innowise.authenticationservice.service.AuthService;
 
+/**
+ * REST контроллер для аутентификации и управления токенами.
+ * Предоставляет endpoints для регистрации, входа, обновления токенов и валидации.
+ */
 @RestController
 @RequestMapping("/auth/v1")
 public class AuthController {
@@ -24,11 +28,10 @@ public class AuthController {
     public AuthController(AuthService authService) {
         this.authService = authService;
     }
-
     /**
      * Аутентификация пользователя по логину и паролю.
      * Возвращает access и refresh токены при успешной аутентификации.
-     *
+     * 
      * @param loginRequest данные для входа (login, password)
      * @return TokenResponse с access и refresh токенами
      */
@@ -39,23 +42,22 @@ public class AuthController {
 
     /**
      * Регистрация нового пользователя в auth-service.
-     * Создает учетные данные в auth_db и возвращает JWT токены.
-     * Пользователь должен самостоятельно вызвать user-service для создания профиля
-     * через POST /api/v1/users/self с полученным токеном.
-     *
+     * Создает учетные данные в auth_db.
+     * После регистрации необходимо войти через /auth/v1/login для получения токенов.
+     * 
      * @param registerRequest данные для регистрации (login, password, role)
-     * @return TokenResponse с access и refresh токенами
+     * @return ResponseEntity со статусом 201 Created
      */
     @PostMapping("/register")
-    public ResponseEntity<TokenResponse> register(@Valid @RequestBody RegisterRequest registerRequest) {
-        TokenResponse tokenResponse = authService.register(registerRequest);
-        return ResponseEntity.ok(tokenResponse);
+    public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest registerRequest) {
+        authService.register(registerRequest);
+        return ResponseEntity.status(201).body("User registered successfully. Please login to get tokens.");
     }
 
     /**
      * Обновление access токена с помощью refresh токена.
      * Возвращает новую пару access и refresh токенов.
-     *
+     * 
      * @param request запрос с refresh токеном
      * @return TokenResponse с новыми access и refresh токенами
      */
@@ -67,7 +69,7 @@ public class AuthController {
     /**
      * Создание токена для существующего пользователя (алиас для /login).
      * Используется для совместимости со старыми клиентами.
-     *
+     * 
      * @param loginRequest данные для входа (login, password)
      * @return TokenResponse с access и refresh токенами
      */
@@ -76,11 +78,32 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(loginRequest));
     }
 
+//    @PostMapping("/validate")
+//    public ResponseEntity<TokenValidationResponse> validateToken(@Valid @RequestBody String request) {
+//        return ResponseEntity.ok(authService.validateToken(request));
+//    }
+
+//    @PostMapping("/validate")
+//    public ResponseEntity<TokenValidationResponse> validateToken(
+//            @RequestHeader("Authorization") String authHeader) {
+//
+//        String token = extractTokenFromHeader(authHeader); // "Bearer {token}"
+//        TokenValidationResponse validationResponse = authService.validateToken(token);
+//        return ResponseEntity.ok(validationResponse);
+//    }
+//
+//    private String extractTokenFromHeader(String authHeader) {
+//        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+//            return authHeader.substring(7);
+//        }
+//        throw new RuntimeException("Invalid Authorization header");
+//    }
+
     /**
      * Валидация JWT токена.
      * Проверяет валидность токена и возвращает информацию о пользователе (username, role).
      * Используется другими сервисами для проверки токенов.
-     *
+     * 
      * @param request запрос с токеном для валидации
      * @return TokenValidationResponse с результатом валидации и информацией о пользователе
      */

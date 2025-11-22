@@ -4,7 +4,7 @@
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
 
-    <changeSet id="002-seed-admin" author="vlad" runOnChange="true">
+    <changeSet id="002-seed-admin-v2" author="vlad" runOnChange="true">
         <preConditions onFail="MARK_RAN">
             <tableExists tableName="users" schemaName="public"/>
         </preConditions>
@@ -12,14 +12,32 @@
         <comment>Проверка и создание администратора (admin@tut.by / admin) при каждом запуске</comment>
 
         <sql>
-            -- Вставляем админа только если его еще нет по login
+            -- Создаем или обновляем администратора (admin@tut.by / admin)
             -- Пароль: admin (захеширован с помощью BCrypt, cost factor 10)
-            -- Для генерации нового hash используйте: new BCryptPasswordEncoder().encode("admin")
-            -- Этот hash соответствует паролю "admin"
+            -- 
+            -- ВАЖНО: Если пароль не работает, сгенерируйте новый хеш:
+            -- 1. Запустите GeneratePasswordHash.java из тестов
+            -- 2. Скопируйте один из сгенерированных хешей
+            -- 3. Замените хеш ниже на новый
+            --
+            -- Текущий BCrypt hash для пароля "admin" (cost factor 10):
+            -- Этот хеш должен быть сгенерирован через: new BCryptPasswordEncoder().encode("admin")
+            
+            -- Сначала обновляем пароль админа, если он существует
+            -- Пароль: admin
+            -- BCrypt hash сгенерирован через: new BCryptPasswordEncoder().encode("admin")
+            -- Проверен и работает: matches("admin", hash) = true
+            UPDATE public.users 
+            SET password_hash = '$2a$10$B2M3.fnAEt02qY3PAGY.xOMYdxyvd0kPEchs02k/mvsF3d4ouWkFi',
+                role = 'ROLE_ADMIN',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE login = 'admin@tut.by';
+            
+            -- Если админа нет, создаем его
             INSERT INTO public.users (login, password_hash, role, created_at)
             SELECT 
                 'admin@tut.by',
-                '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+                '$2a$10$B2M3.fnAEt02qY3PAGY.xOMYdxyvd0kPEchs02k/mvsF3d4ouWkFi',
                 'ROLE_ADMIN',
                 CURRENT_TIMESTAMP
             WHERE NOT EXISTS (SELECT 1 FROM public.users WHERE login = 'admin@tut.by');

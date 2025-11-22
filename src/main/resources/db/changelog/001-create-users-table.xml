@@ -4,7 +4,7 @@
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
 
-    <changeSet id="001-create-users-table" author="authentication-service">
+    <changeSet id="001-create-users-table" author="vlad">
         <preConditions onFail="MARK_RAN">
             <not>
                 <tableExists tableName="users" schemaName="public"/>
