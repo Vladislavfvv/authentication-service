@@ -14,6 +14,15 @@ cd E:\Innowise\Java\UserService\userService; docker compose down -v --remove-orp
 docker rmi -f userservice-user-service:latest
 docker rmi -f authentication-service-authentication-service:latest
 
+# 1. Остановить контейнеры
+docker-compose down
+
+# 2. Пересобрать проект через Maven (создаст новый JAR с вашими изменениями)
+mvn clean package -DskipTests
+
+# 3. Пересобрать и запустить Docker контейнеры
+docker-compose up --build -d
+
 после устанавливаем:
 cd E:\Innowise\Java\UserService\userService; docker compose up -d --build
 
@@ -373,10 +382,53 @@ POST http://localhost:8081/auth/v1/register
 Получаете accessToken и refreshToken
 
 Создание профиля:
-POST http://localhost:8082/api/v1/users/selfAuthorization: 
-Bearer {accessToken}{  "name": "Roma",  "surname": "Romanov"}
+POST http://localhost:8082/api/v1/users/self
+Authorization: Bearer {accessToken}{  "name": "Roma",  "surname": "Romanov"}
 Email автоматически берется из токена!
 
-Получение пользователя:
-GET http://localhost:8082/api/v1/users/email?email=user@example.comAuthorization: 
-Bearer {accessToken}→ Возвращает данные пользователя
+Получение пользователя по email:
+GET http://localhost:8082/api/v1/users/email?email=user@example.com
+Authorization: Bearer {accessToken} 
+Возвращает данные пользователя
+
+Получение пользователя по ID (если знаете ID из базы):
+GET http://localhost:8082/api/v1/users/id?id=2
+Authorization: Bearer {ваш_токен}
+Возвращает данные пользователя
+
+
+Обновление профиля:
+PUT http://localhost:8082/api/v1/users/2
+Authorization: Bearer {ваш_токен}
+Content-Type: application/json
+
+{
+  "name": "UpdatedName",
+  "surname": "UpdatedSurname",
+  "birthDate": "1995-05-15"
+}
+
+Обновление токена (refresh)
+POST http://localhost:8081/auth/v1/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{ваш_refreshToken_из_ответа_логина}"
+}
+
+Повторная попытка создать профиль (должна вернуть 409)
+POST http://localhost:8082/api/v1/users/self
+Authorization: Bearer {ваш_токен}
+Content-Type: application/json
+
+{
+  "name": "AnotherName",
+  "surname": "AnotherSurname",
+  "birthDate": "2000-01-01"
+}
+Ожидаемый результат: 409 Conflict (профиль уже существует)
+
+Проверка без токена (должна вернуть 401)
+GET http://localhost:8082/api/v1/users/id?id=2
+
+И т.д. и т.п.
