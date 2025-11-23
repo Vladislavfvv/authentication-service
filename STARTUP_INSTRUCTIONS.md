@@ -6,6 +6,10 @@
 2. **Maven** должен быть установлен (для сборки приложений)
 3. **Java 21** должна быть установлена
 
+Удаление контейнеров
+cd E:\Innowise\Java\4-Security\authenticationService\authentication-service; 
+docker-compose down -v --rmi all
+
 ## Шаг 1: Очистка предыдущих данных 
 одна команда на 3 действия(остановка + удаление контейнеров + удаление volumes и сетей)
 cd E:\Innowise\Java\UserService\userService; docker compose down -v --remove-orphans
@@ -432,3 +436,7 @@ Content-Type: application/json
 GET http://localhost:8082/api/v1/users/id?id=2
 
 И т.д. и т.п.
+
+
+тестирование:
+cd E:\Innowise\Java\4-Security\authenticationService\authentication-service; mvn test-compile -q 2>&1 | Select-String -Pattern "ERROR|BUILD SUCCESS|BUILD FAILURE" | Select-Object -First 10

@@ -14,8 +14,11 @@ import io.jsonwebtoken.security.Keys;
 
 import lombok.Getter;
 
-//Этот компонент отвечает за создание и валидацию JSON Web Token (JWT).
-//Используется библиотека io.jsonwebtoken (JJWT)
+/**
+ * Компонент для создания и валидации JSON Web Token (JWT).
+ * Используется библиотека io.jsonwebtoken (JJWT).
+ * Генерирует access и refresh токены, валидирует токены, извлекает данные из токенов.
+ */
 @Component
 public class JwtTokenProvider {
     //Симметричный секрет, которым подписываются токены (HS256).
@@ -46,7 +49,9 @@ public class JwtTokenProvider {
         return generateToken(username, role, refreshExpiration);
     }
 
-    //Генерация токена.
+    // Генерация JWT токена с указанным сроком действия.
+    // В токен добавляются: имя пользователя (subject), роль, время создания и время истечения.
+    // Токен подписывается симметричным ключом с использованием алгоритма HS256.
     private String generateToken(String username, Role role, long jwtExpiration) {
         Date now = new Date();
         Date expireDate = new Date(now.getTime() + jwtExpiration);
@@ -60,7 +65,8 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    //Валидация токена.
+    // Валидация JWT токена: проверка подписи и срока действия.
+    // Возвращает true, если токен валиден, false - если токен поврежден, истек или имеет неверную подпись.
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder()
@@ -73,6 +79,7 @@ public class JwtTokenProvider {
         }
     }
 
+    // Извлекает имя пользователя (email) из JWT токена (поле subject).
     public String getUsernameFromToken(String token) {
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
@@ -82,6 +89,7 @@ public class JwtTokenProvider {
         return claims.getSubject();
     }
 
+    // Извлекает роль пользователя из JWT токена (поле "role" в claims).
     public String getRoleFromToken(String token) {
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
@@ -91,6 +99,7 @@ public class JwtTokenProvider {
         return claims.get("role", String.class);
     }
 
+    // Извлекает дату истечения срока действия токена.
     public Date getExpirationDateFromToken(String token) {
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
@@ -99,5 +108,4 @@ public class JwtTokenProvider {
                 .getBody();
         return claims.getExpiration();
     }
-
 }
