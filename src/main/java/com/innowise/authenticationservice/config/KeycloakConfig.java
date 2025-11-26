@@ -8,11 +8,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ConditionalOnProperty(name = "keycloak.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "keycloak.enabled", havingValue = "true", matchIfMissing = false)
 //name = "keycloak.enabled" - проверяем конфигурационное свойство keycloak.enabled (ищется в application.properties, профилях, переменных окружения и т.д.).
 //havingValue = "true" - если значение свойства равно true, то конфигурация будет применена.
-//matchIfMissing = true - если свойство не найдено, то конфигурация будет применена.
-//Если keycloak.enabled=false, класс игнорируется: 
+//matchIfMissing = false - если свойство не найдено, то конфигурация НЕ будет применена (Keycloak опционален).
+//Если keycloak.enabled=false или свойство отсутствует, класс игнорируется: 
 //Keycloak-бины не регистрируются, и сервис работает без интеграции
 public class KeycloakConfig {
     //URL Keycloak сервера
