@@ -1,26 +1,5 @@
 package com.innowise.authenticationservice.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.util.Optional;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.stubbing.Answer;
-
 import com.innowise.authenticationservice.dto.LoginRequest;
 import com.innowise.authenticationservice.dto.RegisterRequest;
 import com.innowise.authenticationservice.dto.TokenResponse;
@@ -31,26 +10,27 @@ import com.innowise.authenticationservice.model.User;
 import com.innowise.authenticationservice.repository.UserRepository;
 import com.innowise.authenticationservice.security.JwtTokenProvider;
 import com.innowise.authenticationservice.security.PasswordEncoder;
-import com.innowise.authenticationservice.client.UserServiceClient;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)//автоматически инициализирует поля, помеченные @Mock
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
+
+/**
+ * Тесты для AuthService.
+ * Проверяет бизнес-логику аутентификации, регистрации и управления токенами.
+ */
+@ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
-    //@SuppressWarnings("unchecked")   // подавляет предупреждения о "сырых" generic-типах
-    //@SuppressWarnings("deprecation") // подавляет использование устаревших API
-    //@SuppressWarnings("rawtypes")    // подавляет "Raw use of parameterized class"
-    //@SuppressWarnings("unused")      // подавляет "переменная не используется"
-    //@SuppressWarnings("null")         // подавляет NPE
-
-    //any(); - // любое значение этого типа
-    //anyString();      // любое значение типа String
-    //anyInt();         // любое значение типа int
-    //any(Role.class);  // любой объект типа Role
-    //eq("Roma");       // точно значение "Roma"
-
-
-    private static final String LOGIN = "user@example.com";
-    private static final String PASSWORD = "secret";
-    private static final String PASSWORD_HASH = "hashed";
 
     @Mock
     private UserRepository userRepository;
@@ -61,266 +41,393 @@ class AuthServiceTest {
     @Mock
     private JwtTokenProvider jwtTokenProvider;
 
-    @Mock
-    private KeycloakService keycloakService;
-
-    @Mock
-    private UserServiceClient userServiceClient;
-
+    @InjectMocks
     private AuthService authService;
 
-    @BeforeEach//Каждый тест получает свежий экземпляр AuthService со статическими моками
+    private User testUser;
+    private LoginRequest loginRequest;
+    private RegisterRequest registerRequest;
+
+    @BeforeEach
     void setUp() {
-        authService = new AuthService( //authService создаётся вручную в @BeforeEach с этими моками (т.е. тестируем реальную имплементацию, но с "поддельными" зависимостями)
-                userRepository,
-                passwordEncoder,
-                jwtTokenProvider,
-                Optional.of(keycloakService), //сервис может работать с Keycloak (в некоторых конфигурациях Keycloak может отсутствовать — тогда туда передаем empty)
-                Optional.of(userServiceClient) //клиент для синхронизации с user-service
-        );
+        // Создаём тестового пользователя для использования в тестах
+        // В unit-тестах мы используем моки, поэтому это просто объект с тестовыми данными
+        testUser = new User();
+        testUser.setId(1L);
+        testUser.setLogin("testuser");
+        testUser.setPasswordHash("$2a$10$hashedPassword"); // Хеш пароля (BCrypt)
+        testUser.setRole(Role.ROLE_USER);
+
+        // Создаём DTO для запроса входа
+        loginRequest = new LoginRequest();
+        loginRequest.setLogin("testuser");
+        loginRequest.setPassword("password123");
+
+        // Создаём DTO для запроса регистрации
+        registerRequest = new RegisterRequest();
+        registerRequest.setLogin("newuser");
+        registerRequest.setPassword("password123");
+        registerRequest.setRole("USER");
     }
 
-    private User sampleUser() { //создание тестового пользователя (в т.ч. с уже захешированным паролем)
+    @Test
+    @DisplayName("login - успешный вход с валидными учетными данными")
+    void login_ShouldReturnTokens_WhenCredentialsAreValid() {
+        // given
+        // Когда кто-то вызовет userRepository.findByLogin("testuser"), верни Optional с testUser
+        // (это объект, созданный в setUp() с данными пользователя)
+        when(userRepository.findByLogin("testuser")).thenReturn(Optional.of(testUser));
+        // Когда кто-то вызовет passwordEncoder.matches("password123", хеш), верни true
+        // Это имитирует успешную проверку пароля
+        when(passwordEncoder.matches("password123", "$2a$10$hashedPassword")).thenReturn(true);
+        // Когда кто-то вызовет jwtTokenProvider.generateAccessToken(...), верни "access-token"
+        when(jwtTokenProvider.generateAccessToken("testuser", Role.ROLE_USER)).thenReturn("access-token");
+        // Когда кто-то вызовет jwtTokenProvider.generateRefreshToken(...), верни "refresh-token"
+        when(jwtTokenProvider.generateRefreshToken("testuser", Role.ROLE_USER)).thenReturn("refresh-token");
+        // Когда кто-то вызовет jwtTokenProvider.getJwtExpiration(), верни 900000L (время жизни токена)
+        when(jwtTokenProvider.getJwtExpiration()).thenReturn(900000L);
 
-        return new User(LOGIN,
-                PASSWORD_HASH,
-                Role.ROLE_USER,
-                "firstname",
-                "lastname");
+        //when
+        // Вызываем тестируемый метод входа пользователя
+        TokenResponse response = authService.login(loginRequest);
+
+        // then
+        assertNotNull(response); // Проверка: что результат не null
+        assertEquals("access-token", response.getAccessToken()); // Проверка: что access токен совпадает
+        assertEquals("refresh-token", response.getRefreshToken()); // Проверка: что refresh токен совпадает
+        assertEquals(900000L, response.getExpiresIn()); // Проверка: что время жизни токена совпадает
+        verify(userRepository).findByLogin("testuser"); // Проверка: что метод был вызван
+        verify(passwordEncoder).matches("password123", "$2a$10$hashedPassword"); // Проверка: что пароль был проверен
+        verify(jwtTokenProvider).generateAccessToken("testuser", Role.ROLE_USER); // Проверка: что access токен был сгенерирован
+        verify(jwtTokenProvider).generateRefreshToken("testuser", Role.ROLE_USER); // Проверка: что refresh токен был сгенерирован
     }
 
-    @Nested//оказывается тесты прикольно распределяются по вложенным классам - как подпапки для разделения логики
-    class LoginTests {
-        @Test
-        @DisplayName("login returns tokens when credentials are valid")
-        void loginSuccess() {
-            // given
-            LoginRequest request = new LoginRequest(LOGIN, PASSWORD);
-            User user = sampleUser();
+    @Test
+    @DisplayName("login - пользователь не найден")
+    void login_ShouldThrowException_WhenUserNotFound() {
+        // given & when
+        // Когда кто-то вызовет userRepository.findByLogin("testuser"), верни пустой Optional
+        // Это имитирует ситуацию, когда пользователя с таким логином не существует в базе данных
+        when(userRepository.findByLogin("testuser")).thenReturn(Optional.empty());
 
-            when(userRepository.findByLogin(LOGIN)).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches(PASSWORD, PASSWORD_HASH)).thenReturn(true);
-            when(jwtTokenProvider.generateAccessToken(LOGIN, Role.ROLE_USER)).thenReturn("access");
-            when(jwtTokenProvider.generateRefreshToken(LOGIN, Role.ROLE_USER)).thenReturn("refresh");
-            when(jwtTokenProvider.getJwtExpiration()).thenReturn(3600L);
+        // Вызываем тестируемый метод и ожидаем выброс исключения
+        AuthenticationException exception = assertThrows(AuthenticationException.class,
+                () -> authService.login(loginRequest));
 
-            //when вызов метода
-            TokenResponse response = authService.login(request);
-
-            //then сравнение
-            assertNotNull(response);
-            assertEquals("access", response.getAccessToken());
-            assertEquals("refresh", response.getRefreshToken());
-            assertEquals(3600L, response.getExpiresIn());
-        }
-
-        @Test
-        @DisplayName("login throws when user not found")
-        void loginUserNotFound() {
-            //given+when вызов метода
-            when(userRepository.findByLogin(LOGIN)).thenReturn(Optional.empty());
-
-            //then сравнение
-            AuthenticationException ex = assertThrows(
-                    AuthenticationException.class,
-                    () -> authService.login(new LoginRequest(LOGIN, PASSWORD))
-            );
-
-            assertEquals("Invalid login or password", ex.getMessage());
-        }
-
-        @Test
-        @DisplayName("login throws when password mismatched")
-        void loginInvalidPassword() {
-            // given
-            User user = sampleUser();
-
-            //when вызов метода
-            when(userRepository.findByLogin(LOGIN)).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches(PASSWORD, PASSWORD_HASH)).thenReturn(false);
-
-            //then
-            AuthenticationException ex = assertThrows(
-                    AuthenticationException.class,
-                    () -> authService.login(new LoginRequest(LOGIN, PASSWORD))
-            );
-
-            assertEquals("Invalid login or password", ex.getMessage());
-        }
+        // then
+        assertEquals("Invalid login or password", exception.getMessage()); // Проверка: что сообщение исключения совпадает
+        verify(userRepository).findByLogin("testuser"); // Проверка: что метод был вызван
+        verify(passwordEncoder, never()).matches(anyString(), anyString()); // Проверка: что проверка пароля НЕ была вызвана
+        // (если пользователь не найден, пароль проверять не нужно)
     }
 
-    @Nested
-    class RegisterTests {
-        @Test
-        @DisplayName("register persists user and syncs with Keycloak and user-service")
-        @SuppressWarnings("null")//подавление предупреждения компилятора, связанного с потенциальными null-значениями
-        void registerSuccess() {//вызывает userRepository.save() с корректной сущностью и синхронизирует пользователя с Keycloak и user-service
-            RegisterRequest request = new RegisterRequest(LOGIN, PASSWORD, "firstname", "lastname", "ROLE_USER");
+    @Test
+    @DisplayName("login - неверный пароль")
+    void login_ShouldThrowException_WhenPasswordIsInvalid() {
+        // given
+        // Когда кто-то вызовет userRepository.findByLogin("testuser"), верни Optional с testUser
+        when(userRepository.findByLogin("testuser")).thenReturn(Optional.of(testUser));
+        // Когда кто-то вызовет passwordEncoder.matches("wrongpassword", хеш), верни false
+        // Это имитирует ситуацию, когда пароль не совпадает с хешем в базе данных
+        when(passwordEncoder.matches("wrongpassword", "$2a$10$hashedPassword")).thenReturn(false);
 
-            when(userRepository.existsByLogin(LOGIN)).thenReturn(false);//нет конфликта логина
-            when(passwordEncoder.encode(PASSWORD)).thenReturn(PASSWORD_HASH);//поведение кодировщика
-            when(userRepository.save(any(User.class))).thenAnswer((Answer<User>) invocation -> {//перехватывает аргумент (сохраняемого User) и проверяет его поля (assert внутри thenAnswer).
-                //Mockito и Answer<User> — обобщённый тип? Компилятор не может гарантировать, что invocation.getArgument(0, User.class) не вернёт null.
-                //Поэтому он предупреждает: "возможен null при разыменовании"/ ручную проверяем assertNotNull(savedUser); и уверен, что null не будет
-                //thenAnswer используется вместо простого thenReturn, чтобы протестировать, какую сущность сервис пытается сохранить (а не только что вызов был)
-                User savedUser = invocation.getArgument(0, User.class);
-                assertNotNull(savedUser);
-                assertEquals(LOGIN, savedUser.getLogin());
-                assertEquals("firstname", savedUser.getFirstName());
-                assertEquals("lastname", savedUser.getLastName());
-                assertEquals(Role.ROLE_USER, savedUser.getRole());
-                return savedUser;
-            });
-            // Мокируем вызов userServiceClient.createUser() чтобы он не выбрасывал исключение
-            doNothing().when(userServiceClient).createUser(any(String.class), any(String.class), any(String.class));
+        // Устанавливаем неверный пароль в запросе
+        loginRequest.setPassword("wrongpassword");
 
-            authService.register(request);
+        //when & then
+        // Вызываем тестируемый метод и ожидаем выброс исключения
+        AuthenticationException exception = assertThrows(AuthenticationException.class,
+                () -> authService.login(loginRequest));
 
-            verify(keycloakService).createUser(
-                    eq(LOGIN),
-                    eq(PASSWORD),
-                    eq(Role.ROLE_USER),
-                    eq("firstname"),
-                    eq("lastname")
-            );
-            // Проверяем, что userServiceClient.createUser() был вызван
-            verify(userServiceClient).createUser(
-                    eq(LOGIN),
-                    eq("firstname"),
-                    eq("lastname")
-            );
-        }
-
-        @Test
-        @DisplayName("register throws when login already exists")
-        void registerDuplicateLogin() {
-            when(userRepository.existsByLogin(LOGIN)).thenReturn(true);
-
-            RegisterRequest request = new RegisterRequest(LOGIN, PASSWORD, "firstname", "lastname", "ROLE_USER");
-
-            AuthenticationException ex = assertThrows(AuthenticationException.class, () -> authService.register(request));
-            assertEquals("Login already exists", ex.getMessage());
-            //проверка, что мок вызван с ожидаемыми аргументами
-            verify(keycloakService, never()).createUser(any(), any(), any(), any(), any());//способ проверить, что определённый метод был вызван (или не был вызван) на мок-объекте (mock) в ходе теста
-            //аналог - verify(keycloakService, times(0)).createUser(any(), any(), any(), any(), any())
-            //keycloakService — это мок (замокированный объект)
-            //never() - верификационный режим, который означает "ожидаем 0 вызовов". Альтернатива — times(0)
-            //any() - матчер (matcher) — он говорит Mockito: "мне всё равно, что передавалось в аргумент, подойдёт любое значение этого типа"
-            // ИТОГО: в данном случаеп проверка метода createUser() - убеждаемся, что он не вызывался неважно какие аргументы были переданы
-            verify(userServiceClient, never()).createUser(any(), any(), any());//проверяем, что userServiceClient.createUser() также не был вызван
-        }
-
-        @Test
-        @DisplayName("register throws when role string is invalid")
-        void registerInvalidRole() {
-            RegisterRequest request = new RegisterRequest(LOGIN, PASSWORD, "firstname", "lastname", "invalid-role");
-
-            AuthenticationException ex = assertThrows(AuthenticationException.class, () -> authService.register(request));
-            assertEquals("Invalid role: invalid-role", ex.getMessage());
-        }
-
-        @Test
-        @DisplayName("register throws when trying to create admin")//админ у нас один, больше не добавляем
-        void registerAdminForbidden() {
-            RegisterRequest request = new RegisterRequest(LOGIN, PASSWORD, "firstname", "lastname", "ROLE_ADMIN");
-
-            AuthenticationException ex = assertThrows(AuthenticationException.class, () -> authService.register(request));
-            assertEquals("Cannot register with ADMIN role", ex.getMessage());
-        }
+        assertEquals("Invalid login or password", exception.getMessage()); // Проверка: что сообщение исключения совпадает
+        verify(userRepository).findByLogin("testuser"); // Проверка: что метод был вызван
+        verify(passwordEncoder).matches("wrongpassword", "$2a$10$hashedPassword"); // Проверка: что пароль был проверен
     }
 
-    @Nested
-    class RefreshTokenTests {
-        @Test
-        @DisplayName("refreshToken returns new tokens when refresh token valid")
-        void refreshTokenSuccess() {
-            String refreshToken = "refresh";
-            User user = sampleUser();
+    @Test
+    @DisplayName("register - успешная регистрация пользователя")
+    void register_ShouldSaveUser_WhenRegistrationIsSuccessful() {
+        // given
+        // Когда кто-то вызовет userRepository.existsByLogin("newuser"), верни false
+        // Это имитирует ситуацию, когда пользователя с таким логином не существует
+        when(userRepository.existsByLogin("newuser")).thenReturn(false);
+        // Когда кто-то вызовет passwordEncoder.encode("password123"), верни хеш пароля
+        // Это имитирует хеширование пароля перед сохранением в БД
+        when(passwordEncoder.encode("password123")).thenReturn("$2a$10$encodedPassword");
 
-            when(jwtTokenProvider.validateToken(refreshToken)).thenReturn(true);
-            when(jwtTokenProvider.getUsernameFromToken(refreshToken)).thenReturn(LOGIN);
-            when(jwtTokenProvider.getRoleFromToken(refreshToken)).thenReturn(Role.ROLE_USER.name());
-            when(userRepository.findByLogin(LOGIN)).thenReturn(Optional.of(user));
-            when(jwtTokenProvider.generateAccessToken(LOGIN, Role.ROLE_USER)).thenReturn("new-access");
-            when(jwtTokenProvider.generateRefreshToken(LOGIN, Role.ROLE_USER)).thenReturn("new-refresh");
-            when(jwtTokenProvider.getJwtExpiration()).thenReturn(7200L); //TokenResponse содержит ожидаемые новые токены и expiresIn = 7200L
+        //when
+        // Вызываем тестируемый метод регистрации пользователя
+        authService.register(registerRequest);
 
-            TokenResponse response = authService.refreshToken(refreshToken);
-
-            assertEquals("new-access", response.getAccessToken());
-            assertEquals("new-refresh", response.getRefreshToken());
-            assertEquals(7200L, response.getExpiresIn());
-        }
-
-        @Test
-        @DisplayName("refreshToken throws when token is invalid")
-        void refreshTokenInvalid() {
-            when(jwtTokenProvider.validateToken("bad")).thenReturn(false);
-
-            AuthenticationException ex = assertThrows(AuthenticationException.class, () -> authService.refreshToken("bad"));
-            assertEquals("Invalid refresh token", ex.getMessage());
-        }
-
-        @Test
-        @DisplayName("refreshToken throws when user not found")
-        void refreshTokenUserMissing() {//токен валиден, но в БД пользователь не найден
-            String refreshToken = "refresh";
-
-            when(jwtTokenProvider.validateToken(refreshToken)).thenReturn(true);
-            when(jwtTokenProvider.getUsernameFromToken(refreshToken)).thenReturn(LOGIN);
-            when(jwtTokenProvider.getRoleFromToken(refreshToken)).thenReturn(Role.ROLE_USER.name());
-            when(userRepository.findByLogin(LOGIN)).thenReturn(Optional.empty());
-
-            AuthenticationException ex = assertThrows(AuthenticationException.class, () -> authService.refreshToken(refreshToken));
-            assertEquals("User not found", ex.getMessage());
-        }
+        // then
+        verify(userRepository).existsByLogin("newuser"); // Проверка: что проверка существования логина была вызвана
+        verify(passwordEncoder).encode("password123"); // Проверка: что пароль был захеширован
+        verify(userRepository).save(any(User.class)); // Проверка: что пользователь был сохранён в БД
     }
 
-    @Nested
-    class ValidateTokenTests {
-        @Test
-        @DisplayName("validateToken returns valid response when JWT valid")
-        void validateTokenSuccess() {
-            String token = "token";
+    @Test
+    @DisplayName("register - пользователь уже существует")
+    void register_ShouldThrowException_WhenUserAlreadyExists() {
+        // given & when
+        // Когда кто-то вызовет userRepository.existsByLogin("newuser"), верни true
+        // Это имитирует ситуацию, когда пользователь с таким логином уже существует в базе данных
+        when(userRepository.existsByLogin("newuser")).thenReturn(true);
 
-            when(jwtTokenProvider.validateToken(token)).thenReturn(true);
-            when(jwtTokenProvider.getUsernameFromToken(token)).thenReturn(LOGIN);
-            when(jwtTokenProvider.getRoleFromToken(token)).thenReturn(Role.ROLE_USER.name());
+        // Вызываем тестируемый метод и ожидаем выброс исключения
+        AuthenticationException exception = assertThrows(AuthenticationException.class,
+                () -> authService.register(registerRequest));
 
-            TokenValidationResponse response = authService.validateToken(token);
+        // then
+        assertEquals("Login already exists", exception.getMessage()); // Проверка: что сообщение исключения совпадает
+        verify(userRepository).existsByLogin("newuser"); // Проверка: что проверка существования логина была вызвана
+        verify(userRepository, never()).save(any(User.class)); // Проверка: что сохранение НЕ было вызвано
+        // (если пользователь уже существует, сохранять его не нужно)
+    }
 
-            assertEquals(true, response.isValid());
-            assertEquals(LOGIN, response.getUsername());
-            assertEquals(Role.ROLE_USER.name(), response.getRole());
-        }
+    @Test
+    @DisplayName("register - попытка регистрации с ролью ADMIN")
+    void register_ShouldThrowException_WhenTryingToRegisterAsAdmin() {
+        // given
+        // Устанавливаем роль ADMIN в запросе регистрации
+        // Это проверяет, что через публичный endpoint нельзя создать администратора
+        registerRequest.setRole("ADMIN");
+        // Когда кто-то вызовет userRepository.existsByLogin("newuser"), верни false
+        when(userRepository.existsByLogin("newuser")).thenReturn(false);
 
-        @Test
-        @DisplayName("validateToken returns invalid response when JWT invalid")
-        void validateTokenInvalid() {
-            String token = "token";
+        //when & then
+        // Вызываем тестируемый метод и ожидаем выброс исключения
+        AuthenticationException exception = assertThrows(AuthenticationException.class,
+                () -> authService.register(registerRequest));
 
-            when(jwtTokenProvider.validateToken(token)).thenReturn(false);
+        assertEquals("Cannot register with ADMIN role", exception.getMessage()); // Проверка: что сообщение исключения совпадает
+        verify(userRepository).existsByLogin("newuser"); // Проверка: что проверка существования логина была вызвана
+        verify(userRepository, never()).save(any(User.class)); // Проверка: что сохранение НЕ было вызвано
+        // (нельзя регистрировать администратора через публичный endpoint)
+    }
 
-            TokenValidationResponse response = authService.validateToken(token);
+    @Test
+    @DisplayName("register - регистрация с ролью ROLE_USER")
+    void register_ShouldAcceptRoleUser_WhenRoleIsRoleUser() {
+        // given
+        // Устанавливаем роль ROLE_USER в запросе регистрации
+        registerRequest.setRole("ROLE_USER");
+        // Когда кто-то вызовет userRepository.existsByLogin("newuser"), верни false
+        when(userRepository.existsByLogin("newuser")).thenReturn(false);
+        // Когда кто-то вызовет passwordEncoder.encode("password123"), верни хеш пароля
+        when(passwordEncoder.encode("password123")).thenReturn("$2a$10$encodedPassword");
 
-            assertEquals(false, response.isValid());
-            assertEquals(null, response.getUsername());
-            assertEquals(null, response.getRole());
-        }
+        //when
+        // Вызываем тестируемый метод регистрации пользователя
+        authService.register(registerRequest);
 
-        @Test
-        @DisplayName("validateToken returns invalid response when exception thrown")
-        void validateTokenException() {
-            String token = "token";
+        // then
+        // Проверка: что пользователь был сохранён с ролью ROLE_USER
+        // argThat позволяет проверить, что сохранённый объект соответствует условию
+        verify(userRepository).save(argThat(user -> user.getRole() == Role.ROLE_USER));
+    }
 
-            when(jwtTokenProvider.validateToken(token)).thenThrow(new RuntimeException("decode error"));
+    @Test
+    @DisplayName("register - регистрация с невалидной ролью")
+    void register_ShouldThrowException_WhenRoleIsInvalid() {
+        // given
+        // Устанавливаем невалидную роль в запросе регистрации
+        // Это проверяет валидацию роли при регистрации
+        registerRequest.setRole("INVALID_ROLE");
+        // Когда кто-то вызовет userRepository.existsByLogin("newuser"), верни false
+        when(userRepository.existsByLogin("newuser")).thenReturn(false);
 
-            TokenValidationResponse response = authService.validateToken(token);
+        //when & then
+        // Вызываем тестируемый метод и ожидаем выброс исключения
+        AuthenticationException exception = assertThrows(AuthenticationException.class,
+                () -> authService.register(registerRequest));
 
-            assertEquals(false, response.isValid());
-            assertEquals(null, response.getUsername());
-            assertEquals(null, response.getRole());
-        }
+        assertTrue(exception.getMessage().contains("Invalid role")); // Проверка: что сообщение содержит информацию о невалидной роли
+        verify(userRepository).existsByLogin("newuser"); // Проверка: что проверка существования логина была вызвана
+        verify(userRepository, never()).save(any(User.class)); // Проверка: что сохранение НЕ было вызвано
+        // (нельзя сохранить пользователя с невалидной ролью)
+    }
+
+    @Test
+    @DisplayName("refreshToken - успешное обновление токена")
+    void refreshToken_ShouldReturnNewTokens_WhenRefreshTokenIsValid() {
+        // given
+        String refreshToken = "valid-refresh-token";
+        // Когда кто-то вызовет jwtTokenProvider.validateToken(refreshToken), верни true
+        // Это имитирует успешную валидацию refresh токена
+        when(jwtTokenProvider.validateToken(refreshToken)).thenReturn(true);
+        // Когда кто-то вызовет jwtTokenProvider.getUsernameFromToken(refreshToken), верни "testuser"
+        // Это извлекает имя пользователя из токена
+        when(jwtTokenProvider.getUsernameFromToken(refreshToken)).thenReturn("testuser");
+        // Когда кто-то вызовет jwtTokenProvider.getRoleFromToken(refreshToken), верни "ROLE_USER"
+        // Это извлекает роль пользователя из токена
+        when(jwtTokenProvider.getRoleFromToken(refreshToken)).thenReturn("ROLE_USER");
+        // Когда кто-то вызовет userRepository.findByLogin("testuser"), верни Optional с testUser
+        when(userRepository.findByLogin("testuser")).thenReturn(Optional.of(testUser));
+        // Когда кто-то вызовет jwtTokenProvider.generateAccessToken(...), верни новый access токен
+        when(jwtTokenProvider.generateAccessToken("testuser", Role.ROLE_USER)).thenReturn("new-access-token");
+        // Когда кто-то вызовет jwtTokenProvider.generateRefreshToken(...), верни новый refresh токен
+        when(jwtTokenProvider.generateRefreshToken("testuser", Role.ROLE_USER)).thenReturn("new-refresh-token");
+        // Когда кто-то вызовет jwtTokenProvider.getJwtExpiration(), верни время жизни токена
+        when(jwtTokenProvider.getJwtExpiration()).thenReturn(900000L);
+
+        //when
+        // Вызываем тестируемый метод обновления токена
+        TokenResponse response = authService.refreshToken(refreshToken);
+
+        // then
+        assertNotNull(response); // Проверка: что результат не null
+        assertEquals("new-access-token", response.getAccessToken()); // Проверка: что новый access токен совпадает
+        assertEquals("new-refresh-token", response.getRefreshToken()); // Проверка: что новый refresh токен совпадает
+        verify(jwtTokenProvider).validateToken(refreshToken); // Проверка: что токен был валидирован
+        verify(jwtTokenProvider).getUsernameFromToken(refreshToken); // Проверка: что имя пользователя было извлечено
+        verify(jwtTokenProvider).getRoleFromToken(refreshToken); // Проверка: что роль была извлечена
+        verify(userRepository).findByLogin("testuser"); // Проверка: что пользователь был найден в БД
+    }
+
+    @Test
+    @DisplayName("refreshToken - невалидный refresh токен")
+    void refreshToken_ShouldThrowException_WhenRefreshTokenIsInvalid() {
+        // given & when
+        String refreshToken = "invalid-refresh-token";
+        // Когда кто-то вызовет jwtTokenProvider.validateToken(refreshToken), верни false
+        // Это имитирует ситуацию, когда refresh токен невалиден (истёк, повреждён и т.д.)
+        when(jwtTokenProvider.validateToken(refreshToken)).thenReturn(false);
+
+        // Вызываем тестируемый метод и ожидаем выброс исключения
+        AuthenticationException exception = assertThrows(AuthenticationException.class,
+                () -> authService.refreshToken(refreshToken));
+
+        // then
+        assertEquals("Invalid refresh token", exception.getMessage()); // Проверка: что сообщение исключения совпадает
+        verify(jwtTokenProvider).validateToken(refreshToken); // Проверка: что токен был валидирован
+        verify(jwtTokenProvider, never()).getUsernameFromToken(anyString()); // Проверка: что извлечение имени НЕ было вызвано
+        // (если токен невалиден, извлекать из него данные не нужно)
+    }
+
+    @Test
+    @DisplayName("refreshToken - пользователь не найден")
+    void refreshToken_ShouldThrowException_WhenUserNotFound() {
+        // given & when
+        String refreshToken = "valid-refresh-token";
+        // Когда кто-то вызовет jwtTokenProvider.validateToken(refreshToken), верни true
+        // Токен валиден, но пользователя в БД нет
+        when(jwtTokenProvider.validateToken(refreshToken)).thenReturn(true);
+        // Когда кто-то вызовет jwtTokenProvider.getUsernameFromToken(refreshToken), верни "nonexistent"
+        when(jwtTokenProvider.getUsernameFromToken(refreshToken)).thenReturn("nonexistent");
+        // Когда кто-то вызовет jwtTokenProvider.getRoleFromToken(refreshToken), верни "ROLE_USER"
+        when(jwtTokenProvider.getRoleFromToken(refreshToken)).thenReturn("ROLE_USER");
+        // Когда кто-то вызовет userRepository.findByLogin("nonexistent"), верни пустой Optional
+        // Это имитирует ситуацию, когда пользователя с таким логином не существует в базе данных
+        when(userRepository.findByLogin("nonexistent")).thenReturn(Optional.empty());
+
+        // Вызываем тестируемый метод и ожидаем выброс исключения
+        AuthenticationException exception = assertThrows(AuthenticationException.class,
+                () -> authService.refreshToken(refreshToken));
+
+        // then
+        assertEquals("User not found", exception.getMessage()); // Проверка: что сообщение исключения совпадает
+        verify(userRepository).findByLogin("nonexistent"); // Проверка: что поиск пользователя был выполнен
+    }
+
+    @Test
+    @DisplayName("refreshToken - несоответствие роли")
+    void refreshToken_ShouldThrowException_WhenRoleMismatch() {
+        // given
+        String refreshToken = "valid-refresh-token";
+        // Создаём пользователя с ролью ADMIN для проверки несоответствия роли
+        User adminUser = new User();
+        adminUser.setLogin("testuser");
+        adminUser.setRole(Role.ROLE_ADMIN); // В БД пользователь имеет роль ADMIN
+
+        // Когда кто-то вызовет jwtTokenProvider.validateToken(refreshToken), верни true
+        when(jwtTokenProvider.validateToken(refreshToken)).thenReturn(true);
+        // Когда кто-то вызовет jwtTokenProvider.getUsernameFromToken(refreshToken), верни "testuser"
+        when(jwtTokenProvider.getUsernameFromToken(refreshToken)).thenReturn("testuser");
+        // Когда кто-то вызовет jwtTokenProvider.getRoleFromToken(refreshToken), верни "ROLE_USER"
+        // Но в БД пользователь имеет роль ROLE_ADMIN — это несоответствие
+        when(jwtTokenProvider.getRoleFromToken(refreshToken)).thenReturn("ROLE_USER");
+        // Когда кто-то вызовет userRepository.findByLogin("testuser"), верни Optional с adminUser
+        when(userRepository.findByLogin("testuser")).thenReturn(Optional.of(adminUser));
+
+        //when & then
+        // Вызываем тестируемый метод и ожидаем выброс исключения
+        // Это проверяет дополнительную проверку безопасности: роль в токене должна совпадать с ролью в БД
+        AuthenticationException exception = assertThrows(AuthenticationException.class,
+                () -> authService.refreshToken(refreshToken));
+
+        assertEquals("Role mismatch: token role does not match user role", exception.getMessage()); // Проверка: что сообщение исключения совпадает
+    }
+
+    @Test
+    @DisplayName("validateToken - валидный токен")
+    void validateToken_ShouldReturnValidResponse_WhenTokenIsValid() {
+        // given
+        String token = "valid-token";
+        // Когда кто-то вызовет jwtTokenProvider.validateToken(token), верни true
+        // Это имитирует успешную валидацию токена
+        when(jwtTokenProvider.validateToken(token)).thenReturn(true);
+        // Когда кто-то вызовет jwtTokenProvider.getUsernameFromToken(token), верни "testuser"
+        when(jwtTokenProvider.getUsernameFromToken(token)).thenReturn("testuser");
+        // Когда кто-то вызовет jwtTokenProvider.getRoleFromToken(token), верни "ROLE_USER"
+        when(jwtTokenProvider.getRoleFromToken(token)).thenReturn("ROLE_USER");
+
+        //when
+        // Вызываем тестируемый метод валидации токена
+        TokenValidationResponse response = authService.validateToken(token);
+
+        // then
+        assertNotNull(response); // Проверка: что результат не null
+        assertTrue(response.isValid()); // Проверка: что токен валиден
+        assertEquals("testuser", response.getUsername()); // Проверка: что имя пользователя совпадает
+        assertEquals("ROLE_USER", response.getRole()); // Проверка: что роль совпадает
+        verify(jwtTokenProvider).validateToken(token); // Проверка: что токен был валидирован
+        verify(jwtTokenProvider).getUsernameFromToken(token); // Проверка: что имя пользователя было извлечено
+        verify(jwtTokenProvider).getRoleFromToken(token); // Проверка: что роль была извлечена
+    }
+
+    @Test
+    @DisplayName("validateToken - невалидный токен")
+    void validateToken_ShouldReturnInvalidResponse_WhenTokenIsInvalid() {
+        // given
+        String token = "invalid-token";
+        // Когда кто-то вызовет jwtTokenProvider.validateToken(token), верни false
+        // Это имитирует ситуацию, когда токен невалиден (истёк, повреждён и т.д.)
+        when(jwtTokenProvider.validateToken(token)).thenReturn(false);
+
+        //when
+        // Вызываем тестируемый метод валидации токена
+        TokenValidationResponse response = authService.validateToken(token);
+
+        // then
+        assertNotNull(response); // Проверка: что результат не null
+        assertFalse(response.isValid()); // Проверка: что токен невалиден
+        assertNull(response.getUsername()); // Проверка: что имя пользователя null (не извлекается для невалидного токена)
+        assertNull(response.getRole()); // Проверка: что роль null (не извлекается для невалидного токена)
+        verify(jwtTokenProvider).validateToken(token); // Проверка: что токен был валидирован
+        verify(jwtTokenProvider, never()).getUsernameFromToken(anyString()); // Проверка: что извлечение имени НЕ было вызвано
+        // (если токен невалиден, извлекать из него данные не нужно)
+    }
+
+    @Test
+    @DisplayName("validateToken - исключение при валидации")
+    void validateToken_ShouldReturnInvalidResponse_WhenExceptionOccurs() {
+        // given
+        String token = "token-that-throws-exception";
+        // Когда кто-то вызовет jwtTokenProvider.validateToken(token), выбрось исключение
+        // Это имитирует ситуацию, когда при валидации токена происходит ошибка (например, некорректный формат)
+        when(jwtTokenProvider.validateToken(token)).thenThrow(new RuntimeException("Token parsing error"));
+
+        //when
+        // Вызываем тестируемый метод валидации токена
+        // Метод должен обработать исключение и вернуть невалидный ответ (не пробросить исключение дальше)
+        TokenValidationResponse response = authService.validateToken(token);
+
+        // then
+        assertNotNull(response); // Проверка: что результат не null
+        assertFalse(response.isValid()); // Проверка: что токен невалиден (из-за исключения)
+        assertNull(response.getUsername()); // Проверка: что имя пользователя null
+        assertNull(response.getRole()); // Проверка: что роль null
+        // Метод должен безопасно обрабатывать исключения и возвращать невалидный ответ вместо проброса исключения
     }
 }
 
