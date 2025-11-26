@@ -31,7 +31,7 @@
 		<lombok.version>1.18.34</lombok.version>
 		<mapstruct.version>1.6.3</mapstruct.version>
 		<jjwt-api.version>0.11.5</jjwt-api.version>
-
+		<keycloak.version>25.0.3</keycloak.version>
 	</properties>
 	<dependencies>
 
@@ -135,6 +135,18 @@
 			<artifactId>jjwt-jackson</artifactId>
 			<version>${jjwt-api.version}</version>
 			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Keycloak Admin Client (optional, используется только если keycloak.enabled=true) -->
+		<dependency>
+			<groupId>org.keycloak</groupId>
+			<artifactId>keycloak-admin-client</artifactId>
+			<version>${keycloak.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.ws.rs</groupId>
+			<artifactId>jakarta.ws.rs-api</artifactId>
+			<version>3.1.0</version>
 		</dependency>
 	</dependencies>
 
