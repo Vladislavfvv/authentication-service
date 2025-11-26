@@ -38,12 +38,6 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
-    @Column(name = "first_name")
-    private String firstName;
-
-    @Column(name = "last_name")
-    private String lastName;
-
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -58,17 +52,6 @@ public class User {
         this.login = login;
         this.passwordHash = passwordHash;
         this.role = role;
-        this.firstName = null;
-        this.lastName = null;
-    }
-
-    public User(String login, String passwordHash, Role role, String firstName, String lastName) {
-        this();
-        this.login = login;
-        this.passwordHash = passwordHash;
-        this.role = role;
-        this.firstName = firstName;
-        this.lastName = lastName;
     }
 
     @PreUpdate
