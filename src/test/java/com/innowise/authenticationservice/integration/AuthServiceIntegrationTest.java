@@ -81,7 +81,10 @@ class AuthServiceIntegrationTest {
     @Test
     @DisplayName("register persists user in database")
     void registerPersistsUser() {//проверяем что регистрация реально сохраняет сущность пользователя в БД и интеграция AuthService -> repository -> DB работает
-        RegisterRequest request = new RegisterRequest(LOGIN, PASSWORD, "Integration", "Test", Role.ROLE_USER.name());
+        RegisterRequest request = new RegisterRequest();
+        request.setLogin(LOGIN);
+        request.setPassword(PASSWORD);
+        request.setRole(Role.ROLE_USER.name());
 
         authService.register(request);
 
@@ -91,8 +94,12 @@ class AuthServiceIntegrationTest {
     @Test
     @DisplayName("login returns tokens for persisted user")
     void loginReturnsTokens() {// login возвращает JWT/токены, проверка логики генерации и выдачи токенов, проверка самого токена
-
-        authService.register(new RegisterRequest(LOGIN, PASSWORD, "Integration", "Test", Role.ROLE_USER.name()));
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setLogin(LOGIN);
+        registerRequest.setPassword(PASSWORD);
+        registerRequest.setRole(Role.ROLE_USER.name());
+        
+        authService.register(registerRequest);
 
         TokenResponse response = authService.login(new LoginRequest(LOGIN, PASSWORD));
 

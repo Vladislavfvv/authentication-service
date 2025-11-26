@@ -38,12 +38,10 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
-    @NotBlank
-    @Column(name = "first_name", nullable = false)
+    @Column(name = "first_name")
     private String firstName;
 
-    @NotBlank
-    @Column(name = "last_name", nullable = false)
+    @Column(name = "last_name")
     private String lastName;
 
     @Column(nullable = false)
@@ -53,6 +51,15 @@ public class User {
 
     public User() {
         this.createdAt = LocalDateTime.now();
+    }
+
+    public User(String login, String passwordHash, Role role) {
+        this();
+        this.login = login;
+        this.passwordHash = passwordHash;
+        this.role = role;
+        this.firstName = null;
+        this.lastName = null;
     }
 
     public User(String login, String passwordHash, Role role, String firstName, String lastName) {

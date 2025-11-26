@@ -1,25 +1,5 @@
 package com.innowise.authenticationservice.controller;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.innowise.authenticationservice.dto.LoginRequest;
 import com.innowise.authenticationservice.dto.RefreshTokenRequest;
@@ -27,170 +7,341 @@ import com.innowise.authenticationservice.dto.RegisterRequest;
 import com.innowise.authenticationservice.dto.TokenResponse;
 import com.innowise.authenticationservice.dto.TokenValidationRequest;
 import com.innowise.authenticationservice.dto.TokenValidationResponse;
-import com.innowise.authenticationservice.dto.UpdateUserProfileRequest;
+import com.innowise.authenticationservice.exception.AuthenticationException;
 import com.innowise.authenticationservice.service.AuthService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(AuthController.class) //То есть мы тестируем только контроллер AuthController, а не всю систему
-//поднимает только web-слой Spring Boot:
-//контроллеры (@RestController, @Controller);
-//@ControllerAdvice (например, глобальные обработчики ошибок);
-//JSON сериализацию / десериализацию (Jackson);
-//маршрутизацию (DispatcherServlet, MockMvc);
-//но не поднимает сервисы, репозитории, базы данных — всё остальное мокается.
-@AutoConfigureMockMvc(addFilters = false) //Создает MockMvc (имитацию HTTP-запросов), но не включает фильтры безопасности (Spring Security, CORS и т.п.)
-@TestPropertySource(properties = "internal.api.key=test-key")
-@SuppressWarnings({"null", "removal"})
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * Тесты для AuthController.
+ * Проверяет работу всех endpoints контроллера аутентификации.
+ */
+@WebMvcTest(controllers = AuthController.class, excludeAutoConfiguration = {
+        org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class
+})
+@AutoConfigureMockMvc(addFilters = false)
 class AuthControllerTest {
 
-    //@SuppressWarnings("unchecked")   // подавляет предупреждения о "сырых" generic-типах
-    //@SuppressWarnings("deprecation") // подавляет использование устаревших API
-    //@SuppressWarnings("rawtypes")    // подавляет "Raw use of parameterized class"
-    //@SuppressWarnings("unused")      // подавляет "переменная не используется"
-    //@SuppressWarnings("null")         // подавляет NPE
     @Autowired
-    private MockMvc mockMvc; //тестовый инструмент, имитирующий HTTP-запросы (GET/POST и т.д.), без запуска настоящего сервера
+    private MockMvc mockMvc;
 
     @Autowired
-    private ObjectMapper objectMapper; //сериализатор Jackson для преобразования объектов Java → JSON
+    private ObjectMapper objectMapper;
 
-    @MockBean
-    private AuthService authService; //замоканный (mock) сервис, внедряемый в AuthController вместо настоящего бина (без базы и Keycloak)
+    @MockitoBean
+    private AuthService authService;
 
-    //@Nested группирует тесты по эндпоинту:
-    @Nested
-    class LoginEndpoint {
-        @Test
-        @DisplayName("POST /auth/login returns tokens")
-        void loginReturnsTokens() throws Exception {
-            TokenResponse response = new TokenResponse("access", "refresh", 3600L);
-            //Задаём поведение мок-сервиса. При вызове authService.login() он вернёт фиктивный TokenResponse
-            when(authService.login(any(LoginRequest.class))).thenReturn(response);
-            //Создаём JSON-запрос который сериализуется в:  "username": "user", "password": "pass"
-            LoginRequest request = new LoginRequest("user", "pass");
+    private TokenResponse tokenResponse;
+    private TokenValidationResponse validationResponse;
 
-            mockMvc.perform(post("/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk()) //HTTP статус 200 OK
-                    .andExpect(jsonPath("$.accessToken").value("access"))//проверка филдов
-                    .andExpect(jsonPath("$.refreshToken").value("refresh"))//проверка данных в ответе JSON
-                    .andExpect(jsonPath("$.expiresIn").value(3600L))
-                    .andExpect(jsonPath("$.type").value("Bearer"));
+    @BeforeEach
+    void setUp() {
+        tokenResponse = new TokenResponse();
+        tokenResponse.setAccessToken("test-access-token");
+        tokenResponse.setRefreshToken("test-refresh-token");
+        tokenResponse.setType("Bearer");
+        tokenResponse.setExpiresIn(900000L);
 
-            verify(authService).login(any(LoginRequest.class));// метод вызван ровно один раз
-        }
+        validationResponse = new TokenValidationResponse();
+        validationResponse.setValid(true);
+        validationResponse.setUsername("testuser");
+        validationResponse.setRole("ROLE_USER");
     }
 
-    @Nested
-    class RegisterEndpoint {
-        @Test
-        @DisplayName("POST /auth/register returns OK")
-        void registerReturnsOk() throws Exception { //Проверка, что этот запрос вызывает сервис
-            RegisterRequest request = new RegisterRequest("user", "pass", "John", "Doe", "ROLE_USER");
-            doNothing().when(authService).register(any(RegisterRequest.class));
+    @Test
+    @DisplayName("POST /auth/v1/login - успешный вход")
+    void login_ShouldReturnTokens_WhenCredentialsAreValid() throws Exception {
+        // given
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setLogin("testuser");
+        loginRequest.setPassword("password123");
 
-            mockMvc.perform(post("/auth/register")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk()); //на статус HTTP 200
+        when(authService.login(any(LoginRequest.class))).thenReturn(tokenResponse);
 
-            verify(authService).register(any(RegisterRequest.class));
-        }
+        // when & then
+        mockMvc.perform(post("/auth/v1/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("test-access-token"))
+                .andExpect(jsonPath("$.refreshToken").value("test-refresh-token"))
+                .andExpect(jsonPath("$.type").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").value(900000L));
     }
 
-    @Nested
-    class RefreshEndpoint {
-        @Test
-        @DisplayName("POST /auth/refresh returns new tokens")
-        void refreshReturnsTokens() throws Exception {
-            TokenResponse response = new TokenResponse("new-access", "new-refresh", 7200L);
-            when(authService.refreshToken("refresh-token")).thenReturn(response);
+    @Test
+    @DisplayName("POST /auth/v1/login - неверные учетные данные")
+    void login_ShouldReturnUnauthorized_WhenCredentialsAreInvalid() throws Exception {
+        // given
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setLogin("testuser");
+        loginRequest.setPassword("wrongpassword");
 
-            RefreshTokenRequest request = new RefreshTokenRequest("refresh-token");
+        when(authService.login(any(LoginRequest.class)))
+                .thenThrow(new AuthenticationException("Invalid login or password"));
 
-            mockMvc.perform(post("/auth/refresh")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.accessToken").value("new-access"))
-                    .andExpect(jsonPath("$.refreshToken").value("new-refresh"))
-                    .andExpect(jsonPath("$.expiresIn").value(7200L));
-
-            verify(authService).refreshToken("refresh-token");
-        }
+        // when & then
+        mockMvc.perform(post("/auth/v1/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isUnauthorized());
     }
 
-    @Nested
-    class CreateTokenEndpoint {
-        @Test
-        @DisplayName("POST /auth/create-token delegates to login")
-        void createTokenDelegatesToLogin() throws Exception {
-            TokenResponse response = new TokenResponse("access", "refresh", 3600L);
-            when(authService.login(any(LoginRequest.class))).thenReturn(response);
+    @Test
+    @DisplayName("POST /auth/v1/login - валидация: пустой login")
+    void login_ShouldReturnBadRequest_WhenLoginIsBlank() throws Exception {
+        // given
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setLogin(""); // пустой login
+        loginRequest.setPassword("password123");
 
-            LoginRequest request = new LoginRequest("user", "pass");
-
-            mockMvc.perform(post("/auth/create-token")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.accessToken").value("access"));
-
-            verify(authService).login(any(LoginRequest.class));
-        }
+        // when & then
+        mockMvc.perform(post("/auth/v1/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isBadRequest());
     }
 
-    @Nested
-    class ValidateEndpoint {
-        @Test
-        @DisplayName("POST /auth/validate returns validation result")
-        void validateReturnsResult() throws Exception {
-            TokenValidationResponse response = new TokenValidationResponse(true, "user", "ROLE_USER");
-            when(authService.validateToken("token")).thenReturn(response);
+    @Test
+    @DisplayName("POST /auth/v1/login - валидация: пустой password")
+    void login_ShouldReturnBadRequest_WhenPasswordIsBlank() throws Exception {
+        // given
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setLogin("testuser");
+        loginRequest.setPassword(""); // пустой password
 
-            TokenValidationRequest request = new TokenValidationRequest("token");
-
-            mockMvc.perform(post("/auth/validate")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.valid").value(true))
-                    .andExpect(jsonPath("$.username").value("user"))
-                    .andExpect(jsonPath("$.role").value("ROLE_USER"));
-
-            verify(authService).validateToken("token");
-        }
+        // when & then
+        mockMvc.perform(post("/auth/v1/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isBadRequest());
     }
 
-    @Nested
-    class UpdateProfileEndpoint {
-        @Test
-        @DisplayName("PUT /auth/users/profile with valid key updates profile")
-        void updateProfileWithValidKey() throws Exception {
-            UpdateUserProfileRequest request = new UpdateUserProfileRequest("old@example.com", "new@example.com", "First", "Last");
-            doNothing().when(authService).updateUserProfile(any(UpdateUserProfileRequest.class));
+    @Test
+    @DisplayName("POST /auth/v1/register - успешная регистрация")
+    void register_ShouldReturnCreated_WhenRegistrationIsSuccessful() throws Exception {
+        // given
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setLogin("newuser");
+        registerRequest.setPassword("password123");
+        registerRequest.setRole("USER");
 
-            mockMvc.perform(put("/auth/users/profile")
-                            .header("X-Internal-Api-Key", "test-key")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isNoContent());
+        // when & then
+        mockMvc.perform(post("/auth/v1/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(registerRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$").value("User registered successfully. Please login to get tokens."));
+    }
 
-            verify(authService).updateUserProfile(any(UpdateUserProfileRequest.class));
-        }
+    @Test
+    @DisplayName("POST /auth/v1/register - пользователь уже существует")
+    void register_ShouldReturnUnauthorized_WhenUserAlreadyExists() throws Exception {
+        // given
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setLogin("existinguser");
+        registerRequest.setPassword("password123");
+        registerRequest.setRole("USER");
 
-        @Test
-        @DisplayName("PUT /auth/users/profile with invalid key is unauthorized")
-        void updateProfileWithInvalidKey() throws Exception {
-            UpdateUserProfileRequest request = new UpdateUserProfileRequest("old@example.com", "new@example.com", "First", "Last");
+        doThrow(new AuthenticationException("Login already exists"))
+                .when(authService).register(any(RegisterRequest.class));
 
-            mockMvc.perform(put("/auth/users/profile")
-                            .header("X-Internal-Api-Key", "wrong-key")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isUnauthorized())
-                    .andExpect(jsonPath("$.message").value("Invalid internal API key"));
-        }
+        // when & then
+        mockMvc.perform(post("/auth/v1/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(registerRequest)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("POST /auth/v1/register - попытка регистрации с ролью ADMIN")
+    void register_ShouldReturnUnauthorized_WhenTryingToRegisterAsAdmin() throws Exception {
+        // given
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setLogin("adminuser");
+        registerRequest.setPassword("password123");
+        registerRequest.setRole("ADMIN");
+
+        doThrow(new AuthenticationException("Cannot register with ADMIN role"))
+                .when(authService).register(any(RegisterRequest.class));
+
+        // when & then
+        mockMvc.perform(post("/auth/v1/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(registerRequest)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("POST /auth/v1/register - валидация: пустой login")
+    void register_ShouldReturnBadRequest_WhenLoginIsBlank() throws Exception {
+        // given
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setLogin(""); // пустой login
+        registerRequest.setPassword("password123");
+        registerRequest.setRole("USER");
+
+        // when & then
+        mockMvc.perform(post("/auth/v1/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(registerRequest)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /auth/v1/register - валидация: пустой password")
+    void register_ShouldReturnBadRequest_WhenPasswordIsBlank() throws Exception {
+        // given
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setLogin("newuser");
+        registerRequest.setPassword(""); // пустой password
+        registerRequest.setRole("USER");
+
+        // when & then
+        mockMvc.perform(post("/auth/v1/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(registerRequest)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /auth/v1/refresh - успешное обновление токена")
+    void refreshToken_ShouldReturnNewTokens_WhenRefreshTokenIsValid() throws Exception {
+        // given
+        RefreshTokenRequest refreshRequest = new RefreshTokenRequest();
+        refreshRequest.setRefreshToken("valid-refresh-token");
+
+        when(authService.refreshToken(anyString())).thenReturn(tokenResponse);
+
+        // when & then
+        mockMvc.perform(post("/auth/v1/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("test-access-token"))
+                .andExpect(jsonPath("$.refreshToken").value("test-refresh-token"));
+    }
+
+    @Test
+    @DisplayName("POST /auth/v1/refresh - невалидный refresh токен")
+    void refreshToken_ShouldReturnUnauthorized_WhenRefreshTokenIsInvalid() throws Exception {
+        // given
+        RefreshTokenRequest refreshRequest = new RefreshTokenRequest();
+        refreshRequest.setRefreshToken("invalid-refresh-token");
+
+        when(authService.refreshToken(anyString()))
+                .thenThrow(new AuthenticationException("Invalid refresh token"));
+
+        // when & then
+        mockMvc.perform(post("/auth/v1/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("POST /auth/v1/refresh - валидация: пустой refresh token")
+    void refreshToken_ShouldReturnBadRequest_WhenRefreshTokenIsBlank() throws Exception {
+        // given
+        RefreshTokenRequest refreshRequest = new RefreshTokenRequest();
+        refreshRequest.setRefreshToken(""); // пустой refresh token
+
+        // when & then
+        mockMvc.perform(post("/auth/v1/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /auth/v1/create-token - успешное создание токена")
+    void createToken_ShouldReturnTokens_WhenCredentialsAreValid() throws Exception {
+        // given
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setLogin("testuser");
+        loginRequest.setPassword("password123");
+
+        when(authService.login(any(LoginRequest.class))).thenReturn(tokenResponse);
+
+        // when & then
+        mockMvc.perform(post("/auth/v1/create-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("test-access-token"))
+                .andExpect(jsonPath("$.refreshToken").value("test-refresh-token"));
+    }
+
+    @Test
+    @DisplayName("POST /auth/v1/validate - успешная валидация токена")
+    void validateToken_ShouldReturnValidationResponse_WhenTokenIsValid() throws Exception {
+        // given
+        TokenValidationRequest validationRequest = new TokenValidationRequest();
+        validationRequest.setToken("valid-token");
+
+        when(authService.validateToken(anyString())).thenReturn(validationResponse);
+
+        // when & then
+        mockMvc.perform(post("/auth/v1/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validationRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true))
+                .andExpect(jsonPath("$.username").value("testuser"))
+                .andExpect(jsonPath("$.role").value("ROLE_USER"));
+    }
+
+    @Test
+    @DisplayName("POST /auth/v1/validate - невалидный токен")
+    void validateToken_ShouldReturnInvalidResponse_WhenTokenIsInvalid() throws Exception {
+        // given
+        TokenValidationRequest validationRequest = new TokenValidationRequest();
+        validationRequest.setToken("invalid-token");
+
+        TokenValidationResponse invalidResponse = new TokenValidationResponse();
+        invalidResponse.setValid(false);
+        invalidResponse.setUsername(null);
+        invalidResponse.setRole(null);
+
+        when(authService.validateToken(anyString())).thenReturn(invalidResponse);
+
+        // when & then
+        mockMvc.perform(post("/auth/v1/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validationRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.username").isEmpty())
+                .andExpect(jsonPath("$.role").isEmpty());
+    }
+
+    @Test
+    @DisplayName("POST /auth/v1/validate - валидация: пустой token")
+    void validateToken_ShouldReturnBadRequest_WhenTokenIsBlank() throws Exception {
+        // given
+        TokenValidationRequest validationRequest = new TokenValidationRequest();
+        validationRequest.setToken(""); // пустой token
+
+        // when & then
+        mockMvc.perform(post("/auth/v1/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validationRequest)))
+                .andExpect(status().isBadRequest());
     }
 }
 

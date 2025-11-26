@@ -7,11 +7,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@Getter
-@Setter
+/**
+ * DTO для запроса обновления токена.
+ */
 @NoArgsConstructor
 @AllArgsConstructor
+@Getter
+@Setter
 public class RefreshTokenRequest {
+    
     @NotBlank(message = "Refresh token is required")
     private String refreshToken;
 }
