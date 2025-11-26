@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0004-make-user-names-nullable
+      author: System
+      changes:
+        - sql:
+            sql: ALTER TABLE users ALTER COLUMN first_name DROP NOT NULL
+        - sql:
+            sql: ALTER TABLE users ALTER COLUMN last_name DROP NOT NULL
+
