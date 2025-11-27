@@ -23,6 +23,7 @@ services:
 
   # Сервис аутентификации
   authentication-service:
+    image: authentication-service:latest
     build: .
     container_name: authentication-service
     ports: 
