@@ -2,9 +2,13 @@ package com.innowise.authenticationservice.controller;
 
 import jakarta.validation.Valid;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.innowise.authenticationservice.dto.LoginRequest;
@@ -25,9 +29,12 @@ import com.innowise.authenticationservice.service.AuthService;
 public class AuthController {
 
     private final AuthService authService;
+    private final String internalApiKey;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService,
+                         @Value("${internal.api.key:}") String internalApiKey) {
         this.authService = authService;
+        this.internalApiKey = internalApiKey;
     }
     /**
      * Аутентификация пользователя по логину и паролю.
@@ -43,16 +50,17 @@ public class AuthController {
 
     /**
      * Регистрация нового пользователя в auth-service.
-     * Создает учетные данные в auth_db.
-     * После регистрации необходимо войти через /auth/v1/login для получения токенов.
+     * Создает учетные данные в auth_db и сразу выдает JWT токены.
+     * После регистрации пользователь должен самостоятельно создать профиль в user-service,
+     * используя полученный токен (email будет извлечен из токена автоматически).
      * 
      * @param registerRequest данные для регистрации (login, password, role)
-     * @return ResponseEntity со статусом 201 Created
+     * @return TokenResponse с access и refresh токенами
      */
     @PostMapping("/register")
-    public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest registerRequest) {
-        authService.register(registerRequest);
-        return ResponseEntity.status(201).body("User registered successfully. Please login to get tokens.");
+    public ResponseEntity<TokenResponse> register(@Valid @RequestBody RegisterRequest registerRequest) {
+        TokenResponse tokenResponse = authService.register(registerRequest);
+        return ResponseEntity.status(201).body(tokenResponse);
     }
 
     /**
@@ -113,6 +121,63 @@ public class AuthController {
             @Valid @RequestBody TokenValidationRequest request) {
         TokenValidationResponse validationResponse = authService.validateToken(request.getToken());
         return ResponseEntity.ok(validationResponse);
+    }
+
+    /**
+     * Внутренний технический endpoint для синхронизации удаления пользователя из auth_db.
+     * Используется только user-service при удалении пользователя для синхронизации данных между сервисами.
+     * НЕ предназначен для прямого использования клиентами.
+     * Требует внутренний API ключ для безопасности.
+     * 
+     * @param email email (login) пользователя для удаления
+     * @return ResponseEntity со статусом 204 No Content при успешном удалении
+     */
+    @DeleteMapping("/internal/sync/users/{email}")
+    public ResponseEntity<Void> deleteUserByEmail(
+            @PathVariable String email,
+            @RequestHeader(value = "X-Internal-Api-Key", required = false) String apiKey) {
+        org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthController.class);
+        
+        log.info("Received DELETE request for user with email: {} (encoded: {})", email, email);
+        log.info("Internal API key configuration - configured: {}, received: {}", 
+                internalApiKey != null && !internalApiKey.isBlank(), 
+                apiKey != null && !apiKey.isBlank());
+        
+        // Проверка внутреннего API ключа для безопасности
+        // Если API ключ настроен, проверяем его наличие и корректность
+        if (internalApiKey != null && !internalApiKey.isBlank()) {
+            if (apiKey == null || apiKey.isBlank() || !apiKey.equals(internalApiKey)) {
+                log.warn("Unauthorized attempt to delete user. Invalid or missing internal API key. Expected: {}, Received: {}", 
+                        internalApiKey, apiKey);
+                throw new AuthenticationException("Invalid or missing internal API key");
+            }
+            log.info("Internal API key validated successfully");
+        } else {
+            log.warn("Internal API key not configured. Endpoint is accessible without authentication.");
+        }
+        
+        // Декодируем email, если он был URL-закодирован
+        String originalEmail = email;
+        try {
+            email = java.net.URLDecoder.decode(email, java.nio.charset.StandardCharsets.UTF_8);
+            if (!originalEmail.equals(email)) {
+                log.info("Decoded email from {} to {}", originalEmail, email);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to decode email, using original value: {}", email);
+        }
+        
+        log.info("Deleting user with email: {} from auth_db", email);
+        
+        try {
+            authService.deleteUserByEmail(email);
+            log.info("Successfully deleted user with email: {} from auth_db", email);
+        } catch (Exception e) {
+            log.error("Failed to delete user with email: {} from auth_db: {}", email, e.getMessage(), e);
+            throw e;
+        }
+        
+        return ResponseEntity.noContent().build();
     }
 
 }
