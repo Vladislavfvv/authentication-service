@@ -54,10 +54,10 @@ public class SecurityConfig {
                         // /auth/v1/create-token - создание токена (для внутреннего использования)
                         // /auth/v1/refresh - обновление токена
                         .requestMatchers("/auth/v1/login", "/auth/v1/register", "/auth/v1/create-token", "/auth/v1/refresh").permitAll()
-                        // Эндпоинты мониторинга - требуют роль ADMIN
-                        // /actuator/health - проверка здоровья приложения
-                        // /actuator/info - информация о приложении
-                        .requestMatchers("/actuator/health", "/actuator/info").hasRole("ADMIN")
+                        // Эндпоинты мониторинга - публичные для health check
+                        // /actuator/health - проверка здоровья приложения (доступен без аутентификации)
+                        // /actuator/info - информация о приложении (доступен без аутентификации)
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // Все остальные эндпоинты /auth/v1/** требуют аутентификации
                         .requestMatchers("/auth/v1/**").authenticated()
                         // Любые другие запросы также требуют аутентификации
