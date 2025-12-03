@@ -1,0 +1,52 @@
+services:
+  # База данных
+  auth_db:
+    image: postgres:16
+    container_name: auth_db
+    restart: always
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # Сервис аутентификации
+  authentication-service:
+    build: .
+    container_name: authentication-service
+    ports: 
+      - "8081:8081"
+    depends_on: 
+      auth_db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth_db:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      # Internal API Key для синхронизации с user-service
+      INTERNAL_API_KEY: dev-internal-api-key
+    networks:
+      - backend-network
+    restart: always
+
+networks:
+  backend-network:
+    name: backend-network
+    external: true
+    #    driver: bridge
+    # Если сеть не существует, создайте её командой:
+    # docker network create backend-network
+
+volumes:
+  auth_db_data:
