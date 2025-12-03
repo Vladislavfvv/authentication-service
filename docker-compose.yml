@@ -34,6 +34,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://auth_db:5432/auth_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      # Internal API Key для синхронизации с user-service
+      INTERNAL_API_KEY: dev-internal-api-key
     networks:
       - backend-network
     restart: always
@@ -42,6 +44,9 @@ networks:
   backend-network:
     name: backend-network
     external: true
+    #    driver: bridge
+    # Если сеть не существует, создайте её командой:
+    # docker network create backend-network
 
 volumes:
   auth_db_data:

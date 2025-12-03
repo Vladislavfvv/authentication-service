@@ -1,0 +1,43 @@
+# Maven
+target/
+.mvn/
+mvnw
+mvnw.cmd
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Documentation
+*.md
+!README.md
+
+# Environment files
+.env
+*.env
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Other
+node_modules/
+*.swp
+*.swo
+*~
+

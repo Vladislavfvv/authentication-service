@@ -16,7 +16,6 @@ import com.innowise.authenticationservice.security.PasswordEncoder;
 import lombok.AllArgsConstructor;
 
 @Service
-@Transactional
 @AllArgsConstructor
 public class AuthService {
 
@@ -24,6 +23,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
+    @Transactional(readOnly = true)
     public TokenResponse login(LoginRequest loginRequest) {
         User user = userRepository.findByLogin(loginRequest.getLogin())
                 .orElseThrow(() -> new AuthenticationException("Invalid login or password"));
@@ -39,12 +39,15 @@ public class AuthService {
     }
 
     /**
-     * Регистрирует пользователя в auth_db.
-     * После регистрации пользователь должен войти через /auth/v1/login для получения токенов.
+     * Регистрирует пользователя в auth_db и возвращает токены.
+     * Создает учетные данные в auth_db и сразу выдает JWT токены.
+     * После регистрации пользователь должен самостоятельно создать профиль в user-service,
+     * используя полученный токен (email будет извлечен из токена).
      * 
      * @param registerRequest данные для регистрации (login, password, role)
+     * @return TokenResponse с access и refresh токенами
      */
-    public void register(RegisterRequest registerRequest) {
+    public TokenResponse register(RegisterRequest registerRequest) {
         if (userRepository.existsByLogin(registerRequest.getLogin())) {
             throw new AuthenticationException("Login already exists");
         }
@@ -74,6 +77,13 @@ public class AuthService {
         User user = new User(registerRequest.getLogin(), passwordHash, role);
 
         userRepository.save(user);
+        
+        // Сразу выдаем токены после регистрации
+        // Пользователь должен самостоятельно создать профиль в user-service, используя полученный токен
+        String accessToken = jwtTokenProvider.generateAccessToken(user.getLogin(), user.getRole());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getLogin(), user.getRole());
+        
+        return new TokenResponse(accessToken, refreshToken, jwtTokenProvider.getJwtExpiration());
     }
 
     /**
@@ -127,5 +137,20 @@ public class AuthService {
         } catch (Exception e) {
             return new TokenValidationResponse(false, null, null);
         }
+    }
+
+    /**
+     * Удаляет пользователя по email (login) из auth_db.
+     * Используется для синхронизации с user-service при удалении пользователя.
+     * 
+     * @param email email (login) пользователя для удаления
+     * @throws AuthenticationException если пользователь не найден
+     */
+    @Transactional
+    public void deleteUserByEmail(String email) {
+        User user = userRepository.findByLogin(email)
+                .orElseThrow(() -> new AuthenticationException("User with email " + email + " not found"));
+        
+        userRepository.delete(user);
     }
 }

@@ -6,7 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -57,7 +57,7 @@ class AuthServiceIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
-    @MockBean
+    @MockitoBean
     private UserServiceClient userServiceClient; // Мокируем user-service клиент, чтобы не вызывать реальный сервис
 
     //для теста данные
@@ -79,16 +79,19 @@ class AuthServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("register persists user in database")
+    @DisplayName("register persists user in database and returns tokens")
     void registerPersistsUser() {//проверяем что регистрация реально сохраняет сущность пользователя в БД и интеграция AuthService -> repository -> DB работает
         RegisterRequest request = new RegisterRequest();
         request.setLogin(LOGIN);
         request.setPassword(PASSWORD);
         request.setRole(Role.ROLE_USER.name());
 
-        authService.register(request);
+        TokenResponse response = authService.register(request);
 
         assertThat(userRepository.existsByLogin(LOGIN)).isTrue();
+        assertThat(response).isNotNull();
+        assertThat(response.getAccessToken()).isNotBlank();
+        assertThat(response.getRefreshToken()).isNotBlank();
     }
 
     @Test

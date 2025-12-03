@@ -145,11 +145,27 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Обрабатывает исключения неподдерживаемого типа контента.
+     * Возвращает HTTP 415 Unsupported Media Type с понятным сообщением.
+     */
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMediaTypeNotSupported(
+            org.springframework.web.HttpMediaTypeNotSupportedException ex) {
+        return buildErrorResponse("UNSUPPORTED_MEDIA_TYPE", 
+                "Content-Type must be 'application/json'. Please set Content-Type header in your request.", 
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+    }
+
+    /**
      * Обрабатывает все остальные необработанные исключения.
      * Возвращает HTTP 500 Internal Server Error с общим сообщением об ошибке.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleAllExceptions(Exception ex) {
+        // Логируем полную ошибку для отладки
+        org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        log.error("Unexpected error occurred", ex);
+        
         ErrorResponse errorResponse = new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "An unexpected error occurred"

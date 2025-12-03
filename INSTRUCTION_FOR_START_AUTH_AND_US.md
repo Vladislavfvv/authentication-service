@@ -200,6 +200,146 @@ docker exec us_db psql -U postgres -d us_db -c "SELECT id, email FROM public.use
         GET http://localhost:8082/api/v1/cards
         Выведет результат: в виде json карты пользователя
 
+    8)  Работа с заказами(пользователь работает только со своими заказами)
+
+    - Создать заказ:
+    POST http://localhost:8083/api/v1/orders
+    {
+        "items": [
+            {
+                "itemId": 1,
+                "quantity": 2.0
+            },
+            {
+                "itemId": 3,
+                "quantity": 1.5
+            }
+        ]
+    }
+
+    - Просмотреть товары 
+    GET http://localhost:8083/api/v1/items
+    Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+
+    Ответ:
+    [
+        {
+            "id": 1,
+            "name": "Laptop",
+            "price": 1500.00
+        },
+        {
+            "id": 2,
+            "name": "Mouse",
+            "price": 25.50
+        }
+    ]
+
+    - Получить свои заказы 
+    `GET http://localhost:8083/api/v1/orders/my`
+    Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+  
+
+    - Получить заказ по ID
+    GET GET http://localhost:8083/api/v1/orders/{id}
+
+    Пример:
+    GET http://localhost:8083/api/v1/orders/1
+    Authorization: Bearer {ваш_JWT_токен}
+
+    Ответ:
+    [
+    {
+        "order": {
+            "id": 2,
+            "userId": 2,
+            "status": "NEW",
+            "creationDate": "2025-12-01T07:03:46.465754",
+            "itemDtoList": [
+                {
+                    "id": 3,
+                    "itemId": 1,
+                    "orderId": 2,
+                    "quantity": 2.00
+                },
+                {
+                    "id": 4,
+                    "itemId": 2,
+                    "orderId": 2,
+                    "quantity": 3.00
+                }
+            ]
+        },
+        "user": {
+            "id": 2,
+            "firstName": "User",
+            "lastName": "lastName",
+            "birthDate": "1925-01-01",
+            "email": "testUser@example.com"
+        }
+    }
+    ]
+
+    - Получить товары по IDs
+    http://localhost:8083/api/v1/orders/ids?ids=2&ids=3
+    Authorization: Bearer {ваш_JWT_токен}
+    Ответ: выведутся все заказы пользователя
+
+    - Получить заказы по статусам
+    GET http://localhost:8083/api/v1/orders/statuses
+    **Доступные статусы:** `NEW`, `PROCESSING`, `COMPLETED`, `CANCELLED`
+
+    Пример:
+    **Правильный способ в Postman:**
+    1. Введите URL: `http://localhost:8083/api/v1/orders/statuses`
+    2. Перейдите на вкладку **"Params"**
+    3. Добавьте параметр `statuses` со значением `NEW`
+    4. Добавьте еще один параметр `statuses` со значением `PROCESSING`
+
+    **Или вручную в URL:**
+    ```
+    GET http://localhost:8083/api/v1/orders/statuses?statuses=NEW&statuses=PROCESSING
+    Authorization: Bearer {ваш_JWT_токен}
+    ```
+
+    - Обновить статус заказа:
+    Пример:
+    PUT http://localhost:8083/api/v1/orders/2
+    {  
+        "status": "PROCESSING"
+    }
+    Ответ:
+    [
+        {
+            "order": {
+                "id": 2,
+                "userId": 2,
+                "status": "PROCESSING",
+                "creationDate": "2025-12-01T07:03:46.465754",
+                "itemDtoList": [
+                    {
+                        "id": 3,
+                        "itemId": 1,
+                        "orderId": 2,
+                        "quantity": 2.00
+                    },
+                    {
+                        "id": 4,
+                        "itemId": 2,
+                        "orderId": 2,
+                        "quantity": 3.00
+                    }
+                ]
+            },
+            "user": {
+                "id": 2,
+                "firstName": "User",
+                "lastName": "lastName",
+                "birthDate": "1925-01-01",
+                "email": "testUser@example.com"
+            }
+        }
+    ]
 
 
 ### Roadmap работы программы **ROLE_ADMIN**:
@@ -250,4 +390,31 @@ docker exec us_db psql -U postgres -d us_db -c "SELECT id, email FROM public.use
     4) Удаление пользователя:
     DELETE http://localhost:8082/api/v1/users/28
 
+    5)Создать товар:
+    POST http://localhost:8083/api/v1/items
+     Body: { 
+            "name": "Keyboard", 
+            "price": 75.00 
+        }
 
+    6) Редактировать товар:
+    PUT http://localhost:8083/api/v1/items/1
+    Authorization: Bearer {ADMIN_TOKEN}
+    Content-Type: application/json
+    {
+        "name": "Phone Pro",
+        "price": 650.00
+    }
+
+    7) Удалить товар:
+    DELETE http://localhost:8083/api/v1/items/1
+    Authorization: Bearer {ADMIN_TOKEN}
+
+    8) Получить все заказы:
+    http://localhost:8083/api/v1/orders
+
+    9) Получить заказы по статусам:
+    GET http://localhost:8083/api/v1/orders/statuses?statuses=NEW&statuses=PROCESSING
+
+    10)Удалить заказ:
+    DELETE http://localhost:8083/api/v1/orders/1

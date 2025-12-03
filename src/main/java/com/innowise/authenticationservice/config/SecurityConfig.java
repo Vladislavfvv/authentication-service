@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -44,16 +45,19 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Настраиваем правила авторизации для различных эндпоинтов
                 .authorizeHttpRequests(auth -> auth
+                        // Внутренний технический endpoint для синхронизации удаления пользователя (только для внутренних вызовов от user-service с API ключом)
+                        // Должен быть первым, чтобы не перехватывался общим правилом /auth/v1/**
+                        .requestMatchers(HttpMethod.DELETE, "/auth/v1/internal/sync/users/**").permitAll()
                         // Публичные эндпоинты - доступны без аутентификации
                         // /auth/v1/login - вход пользователя
                         // /auth/v1/register - регистрация нового пользователя
                         // /auth/v1/create-token - создание токена (для внутреннего использования)
                         // /auth/v1/refresh - обновление токена
                         .requestMatchers("/auth/v1/login", "/auth/v1/register", "/auth/v1/create-token", "/auth/v1/refresh").permitAll()
-                        // Эндпоинты мониторинга - требуют роль ADMIN
-                        // /actuator/health - проверка здоровья приложения
-                        // /actuator/info - информация о приложении
-                        .requestMatchers("/actuator/health", "/actuator/info").hasRole("ADMIN")
+                        // Эндпоинты мониторинга - публичные для health check
+                        // /actuator/health - проверка здоровья приложения (доступен без аутентификации)
+                        // /actuator/info - информация о приложении (доступен без аутентификации)
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // Все остальные эндпоинты /auth/v1/** требуют аутентификации
                         .requestMatchers("/auth/v1/**").authenticated()
                         // Любые другие запросы также требуют аутентификации
