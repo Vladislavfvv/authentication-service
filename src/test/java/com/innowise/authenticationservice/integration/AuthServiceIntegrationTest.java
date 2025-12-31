@@ -68,7 +68,7 @@ class AuthServiceIntegrationTest {
     void setUp() {// Очистка таблицы перед каждым тестом
         userRepository.deleteAll();
         // Мокируем вызов userServiceClient.createUser(), чтобы он не выбрасывал исключение
-        doNothing().when(userServiceClient).createUser(anyString(), anyString(), anyString());
+        doNothing().when(userServiceClient).createUser(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.any(java.time.LocalDate.class));
     }
 
     @AfterEach

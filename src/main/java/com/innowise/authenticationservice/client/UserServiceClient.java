@@ -22,7 +22,7 @@ public class UserServiceClient {
     private final String internalApiKey;
 
     public UserServiceClient(RestTemplate restTemplate,
-                             @Value("${user.service.base-url:http://localhost:8082}") String baseUrl,
+                             @Value("${user.service.base-url:http://user-service:8080}") String baseUrl,
                              @Value("${user.service.internal-api-key:}") String internalApiKey) {
         this.restTemplate = restTemplate;
         this.baseUrl = baseUrl;
@@ -34,7 +34,7 @@ public class UserServiceClient {
     /**
      * Создание пользователя в user-service при регистрации
      */
-    public void createUser(String email, String firstName, String lastName) {
+    public void createUser(String email, String firstName, String lastName, java.time.LocalDate birthDate) {
         if (baseUrl == null || baseUrl.isBlank() || internalApiKey == null || internalApiKey.isBlank()) {
             log.warn("User service URL or internal API key not configured. Skipping user creation in user-service.");
             return;
@@ -45,8 +45,8 @@ public class UserServiceClient {
             userDto.setEmail(email);
             userDto.setFirstName(firstName != null && !firstName.isBlank() ? firstName : "Unknown");
             userDto.setLastName(lastName != null && !lastName.isBlank() ? lastName : "Unknown");
-            // Устанавливаем дату рождения по умолчанию (можно будет обновить позже)
-            userDto.setBirthDate(java.time.LocalDate.now().minusYears(18));
+            // Используем переданную дату рождения или устанавливаем по умолчанию
+            userDto.setBirthDate(birthDate != null ? birthDate : java.time.LocalDate.now().minusYears(18));
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Content-Type", "application/json");
