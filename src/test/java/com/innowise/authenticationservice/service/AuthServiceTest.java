@@ -1,5 +1,6 @@
 package com.innowise.authenticationservice.service;
 
+import com.innowise.authenticationservice.client.UserServiceClient;
 import com.innowise.authenticationservice.dto.LoginRequest;
 import com.innowise.authenticationservice.dto.RegisterRequest;
 import com.innowise.authenticationservice.dto.TokenResponse;
@@ -40,6 +41,9 @@ class AuthServiceTest {
 
     @Mock
     private JwtTokenProvider jwtTokenProvider;
+
+    @Mock
+    private UserServiceClient userServiceClient;
 
     @InjectMocks
     private AuthService authService;
@@ -160,6 +164,8 @@ class AuthServiceTest {
         when(jwtTokenProvider.generateRefreshToken("newuser", Role.ROLE_USER)).thenReturn("refresh-token");
         // Когда кто-то вызовет jwtTokenProvider.getJwtExpiration(), верни 900000L (время жизни токена)
         when(jwtTokenProvider.getJwtExpiration()).thenReturn(900000L);
+        // Мокируем вызов userServiceClient.createUser (не выбрасывает исключение)
+        doNothing().when(userServiceClient).createUser(anyString(), any(), any(), any());
 
         //when
         // Вызываем тестируемый метод регистрации пользователя
@@ -227,6 +233,8 @@ class AuthServiceTest {
         when(userRepository.existsByLogin("newuser")).thenReturn(false);
         // Когда кто-то вызовет passwordEncoder.encode("password123"), верни хеш пароля
         when(passwordEncoder.encode("password123")).thenReturn("$2a$10$encodedPassword");
+        // Мокируем вызов userServiceClient.createUser (не выбрасывает исключение)
+        doNothing().when(userServiceClient).createUser(anyString(), any(), any(), any());
 
         //when
         // Вызываем тестируемый метод регистрации пользователя

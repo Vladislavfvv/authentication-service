@@ -10,9 +10,10 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+// CORS импорты закомментированы - CORS обрабатывается на уровне gateway-service
+// import org.springframework.web.cors.CorsConfiguration;
+// import org.springframework.web.cors.CorsConfigurationSource;
+// import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.innowise.authenticationservice.security.JwtTokenProvider;
 
 /**
@@ -35,8 +36,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // Настраиваем CORS (Cross-Origin Resource Sharing) для разрешения запросов с других доменов
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // CORS обрабатывается на уровне gateway-service, поэтому здесь явно отключаем
+                .cors(cors -> cors.disable())
                 // Отключаем CSRF защиту, так как REST API использует JWT токены, а не cookies
                 // CSRF защита нужна для защиты от подделки запросов при использовании сессий и cookies
                 .csrf(csrf -> csrf.disable())
@@ -91,26 +92,19 @@ public class SecurityConfig {
     }
 
     /**
-     * Настраивает CORS (Cross-Origin Resource Sharing) для разрешения кросс-доменных HTTP-запросов.     
-     * CORS - это механизм безопасности браузеров, который позволяет веб-страницам делать запросы
-     * к серверу, находящемуся на другом домене, порту или протоколе. Без правильной настройки CORS
-     * браузер блокирует такие запросы из соображений безопасности.
+     * CORS настройки удалены - CORS обрабатывается на уровне gateway-service.
+     * Все запросы идут через gateway-service, который добавляет необходимые CORS заголовки.
+     * Это предотвращает дублирование заголовков Access-Control-Allow-Origin.
      */
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        // Разрешаем запросы с любых доменов (в production укажите конкретные домены для безопасности)
-        configuration.setAllowedOriginPatterns(List.of("*"));
-        // Разрешаем основные HTTP-методы для REST API
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        // Разрешаем все заголовки (включая Authorization для JWT токенов)
-        configuration.setAllowedHeaders(List.of("*"));
-        // Разрешаем отправку учетных данных (cookies, authorization headers) в кросс-доменных запросах
-        configuration.setAllowCredentials(true);
-
-        // Создаем источник конфигурации CORS и применяем настройки ко всем эндпоинтам ("/**")
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
+    // @Bean
+    // public CorsConfigurationSource corsConfigurationSource() {
+    //     CorsConfiguration configuration = new CorsConfiguration();
+    //     configuration.setAllowedOriginPatterns(List.of("*"));
+    //     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+    //     configuration.setAllowedHeaders(List.of("*"));
+    //     configuration.setAllowCredentials(true);
+    //     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    //     source.registerCorsConfiguration("/**", configuration);
+    //     return source;
+    // }
 }

@@ -53,41 +53,10 @@ public class AuthService {
      * @return TokenResponse с access и refresh токенами
      */
     public TokenResponse register(RegisterRequest registerRequest) {
-        // Если пользователь уже существует, проверяем пароль и возвращаем токен (как login)
+        // Если пользователь уже существует, выбрасываем исключение
         if (userRepository.existsByLogin(registerRequest.getLogin())) {
-            log.info("User {} already exists, attempting login instead of registration", registerRequest.getLogin());
-            // Используем логику login для существующего пользователя
-            User existingUser = userRepository.findByLogin(registerRequest.getLogin())
-                    .orElseThrow(() -> new AuthenticationException("User not found"));
-            
-            // Проверяем пароль
-            if (!passwordEncoder.matches(registerRequest.getPassword(), existingUser.getPasswordHash())) {
-                throw new AuthenticationException("Invalid login or password");
-            }
-            
-            // Если указаны данные профиля и пользователь еще не имеет профиля в user-service,
-            // пытаемся создать профиль (но не прерываем процесс, если не удалось)
-            if (registerRequest.hasProfileData()) {
-                log.info("Profile data provided for existing user, attempting to create/update profile in user-service");
-                try {
-                    userServiceClient.createUser(
-                        existingUser.getLogin(),
-                        registerRequest.getFirstName(),
-                        registerRequest.getLastName(),
-                        registerRequest.getBirthDate()
-                    );
-                    log.info("User profile created/updated successfully in user-service for: {}", existingUser.getLogin());
-                } catch (Exception e) {
-                    log.warn("Failed to create/update user profile in user-service for existing user: {}. Error: {}", 
-                        existingUser.getLogin(), e.getMessage());
-                    // Не прерываем процесс, продолжаем выдачу токена
-                }
-            }
-            
-            // Возвращаем токены для существующего пользователя
-            String accessToken = jwtTokenProvider.generateAccessToken(existingUser.getLogin(), existingUser.getRole());
-            String refreshToken = jwtTokenProvider.generateRefreshToken(existingUser.getLogin(), existingUser.getRole());
-            return new TokenResponse(accessToken, refreshToken, jwtTokenProvider.getJwtExpiration());
+            log.warn("Registration attempt for existing user: {}", registerRequest.getLogin());
+            throw new AuthenticationException("Login already exists");
         }
 
         // Валидация роли
@@ -120,25 +89,22 @@ public class AuthService {
         String accessToken = jwtTokenProvider.generateAccessToken(user.getLogin(), user.getRole());
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getLogin(), user.getRole());
         
-        // Если указаны данные профиля - автоматически создаем профиль в user-service
-        if (registerRequest.hasProfileData()) {
-            log.info("Profile data provided, creating user profile in user-service for: {}", user.getLogin());
-            try {
-                userServiceClient.createUser(
-                    user.getLogin(),
-                    registerRequest.getFirstName(),
-                    registerRequest.getLastName(),
-                    registerRequest.getBirthDate()
-                );
-                log.info("User profile created successfully in user-service for: {}", user.getLogin());
-            } catch (Exception e) {
-                log.error("Failed to create user profile in user-service for: {}. Error: {}", 
-                    user.getLogin(), e.getMessage(), e);
-                // Не прерываем регистрацию, если не удалось создать профиль
-                // Пользователь может создать профиль позже вручную
-            }
-        } else {
-            log.info("No profile data provided, user can create profile later using token");
+        // ВСЕГДА создаем пользователя в user-service для синхронизации между сервисами
+        // Если указаны данные профиля - используем их, иначе создаем с дефолтными значениями
+        log.info("Creating user in user-service for: {}", user.getLogin());
+        try {
+            userServiceClient.createUser(
+                user.getLogin(),
+                registerRequest.hasProfileData() ? registerRequest.getFirstName() : null,
+                registerRequest.hasProfileData() ? registerRequest.getLastName() : null,
+                registerRequest.hasProfileData() ? registerRequest.getBirthDate() : null
+            );
+            log.info("User created successfully in user-service for: {}", user.getLogin());
+        } catch (Exception e) {
+            log.error("Failed to create user in user-service for: {}. Error: {}", 
+                user.getLogin(), e.getMessage(), e);
+            // Не прерываем регистрацию, если не удалось создать пользователя в user-service
+            // Но это может привести к проблемам при работе с заказами
         }
         
         return new TokenResponse(accessToken, refreshToken, jwtTokenProvider.getJwtExpiration());
