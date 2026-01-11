@@ -2,6 +2,7 @@ package com.innowise.authenticationservice.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.innowise.authenticationservice.client.UserServiceClient;
 import com.innowise.authenticationservice.dto.LoginRequest;
 import com.innowise.authenticationservice.dto.RegisterRequest;
 import com.innowise.authenticationservice.dto.TokenResponse;
@@ -14,16 +15,19 @@ import com.innowise.authenticationservice.security.JwtTokenProvider;
 import com.innowise.authenticationservice.security.PasswordEncoder;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
-@Transactional
 @AllArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserServiceClient userServiceClient;
 
+    @Transactional(readOnly = true)
     public TokenResponse login(LoginRequest loginRequest) {
         User user = userRepository.findByLogin(loginRequest.getLogin())
                 .orElseThrow(() -> new AuthenticationException("Invalid login or password"));
@@ -39,13 +43,19 @@ public class AuthService {
     }
 
     /**
-     * Регистрирует пользователя в auth_db.
-     * После регистрации пользователь должен войти через /auth/v1/login для получения токенов.
+     * Регистрирует пользователя в auth_db и возвращает токены.
+     * Создает учетные данные в auth_db и сразу выдает JWT токены.
      * 
-     * @param registerRequest данные для регистрации (login, password, role)
+     * Если в запросе указаны firstName, lastName, birthDate - автоматически создает профиль в user-service.
+     * Если эти поля не указаны - создаются только credentials, профиль можно создать позже через /api/v1/users/createUser.
+     * 
+     * @param registerRequest данные для регистрации (login, password, role, и опционально firstName, lastName, birthDate)
+     * @return TokenResponse с access и refresh токенами
      */
-    public void register(RegisterRequest registerRequest) {
+    public TokenResponse register(RegisterRequest registerRequest) {
+        // Если пользователь уже существует, выбрасываем исключение
         if (userRepository.existsByLogin(registerRequest.getLogin())) {
+            log.warn("Registration attempt for existing user: {}", registerRequest.getLogin());
             throw new AuthenticationException("Login already exists");
         }
 
@@ -74,6 +84,30 @@ public class AuthService {
         User user = new User(registerRequest.getLogin(), passwordHash, role);
 
         userRepository.save(user);
+        
+        // Сразу выдаем токены после регистрации
+        String accessToken = jwtTokenProvider.generateAccessToken(user.getLogin(), user.getRole());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getLogin(), user.getRole());
+        
+        // ВСЕГДА создаем пользователя в user-service для синхронизации между сервисами
+        // Если указаны данные профиля - используем их, иначе создаем с дефолтными значениями
+        log.info("Creating user in user-service for: {}", user.getLogin());
+        try {
+            userServiceClient.createUser(
+                user.getLogin(),
+                registerRequest.hasProfileData() ? registerRequest.getFirstName() : null,
+                registerRequest.hasProfileData() ? registerRequest.getLastName() : null,
+                registerRequest.hasProfileData() ? registerRequest.getBirthDate() : null
+            );
+            log.info("User created successfully in user-service for: {}", user.getLogin());
+        } catch (Exception e) {
+            log.error("Failed to create user in user-service for: {}. Error: {}", 
+                user.getLogin(), e.getMessage(), e);
+            // Не прерываем регистрацию, если не удалось создать пользователя в user-service
+            // Но это может привести к проблемам при работе с заказами
+        }
+        
+        return new TokenResponse(accessToken, refreshToken, jwtTokenProvider.getJwtExpiration());
     }
 
     /**
@@ -127,5 +161,20 @@ public class AuthService {
         } catch (Exception e) {
             return new TokenValidationResponse(false, null, null);
         }
+    }
+
+    /**
+     * Удаляет пользователя по email (login) из auth_db.
+     * Используется для синхронизации с user-service при удалении пользователя.
+     * 
+     * @param email email (login) пользователя для удаления
+     * @throws AuthenticationException если пользователь не найден
+     */
+    @Transactional
+    public void deleteUserByEmail(String email) {
+        User user = userRepository.findByLogin(email)
+                .orElseThrow(() -> new AuthenticationException("User with email " + email + " not found"));
+        
+        userRepository.delete(user);
     }
 }

@@ -141,12 +141,17 @@ class AuthControllerTest {
         registerRequest.setPassword("password123");
         registerRequest.setRole("USER");
 
+        when(authService.register(any(RegisterRequest.class))).thenReturn(tokenResponse);
+
         // when & then
         mockMvc.perform(post("/auth/v1/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(registerRequest)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$").value("User registered successfully. Please login to get tokens."));
+                .andExpect(jsonPath("$.accessToken").value("test-access-token"))
+                .andExpect(jsonPath("$.refreshToken").value("test-refresh-token"))
+                .andExpect(jsonPath("$.type").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").value(900000L));
     }
 
     @Test

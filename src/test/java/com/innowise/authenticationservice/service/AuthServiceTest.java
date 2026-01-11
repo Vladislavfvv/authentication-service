@@ -1,5 +1,6 @@
 package com.innowise.authenticationservice.service;
 
+import com.innowise.authenticationservice.client.UserServiceClient;
 import com.innowise.authenticationservice.dto.LoginRequest;
 import com.innowise.authenticationservice.dto.RegisterRequest;
 import com.innowise.authenticationservice.dto.TokenResponse;
@@ -40,6 +41,9 @@ class AuthServiceTest {
 
     @Mock
     private JwtTokenProvider jwtTokenProvider;
+
+    @Mock
+    private UserServiceClient userServiceClient;
 
     @InjectMocks
     private AuthService authService;
@@ -154,15 +158,29 @@ class AuthServiceTest {
         // Когда кто-то вызовет passwordEncoder.encode("password123"), верни хеш пароля
         // Это имитирует хеширование пароля перед сохранением в БД
         when(passwordEncoder.encode("password123")).thenReturn("$2a$10$encodedPassword");
+        // Когда кто-то вызовет jwtTokenProvider.generateAccessToken(...), верни "access-token"
+        when(jwtTokenProvider.generateAccessToken("newuser", Role.ROLE_USER)).thenReturn("access-token");
+        // Когда кто-то вызовет jwtTokenProvider.generateRefreshToken(...), верни "refresh-token"
+        when(jwtTokenProvider.generateRefreshToken("newuser", Role.ROLE_USER)).thenReturn("refresh-token");
+        // Когда кто-то вызовет jwtTokenProvider.getJwtExpiration(), верни 900000L (время жизни токена)
+        when(jwtTokenProvider.getJwtExpiration()).thenReturn(900000L);
+        // Мокируем вызов userServiceClient.createUser (не выбрасывает исключение)
+        doNothing().when(userServiceClient).createUser(anyString(), any(), any(), any());
 
         //when
         // Вызываем тестируемый метод регистрации пользователя
-        authService.register(registerRequest);
+        TokenResponse response = authService.register(registerRequest);
 
         // then
+        assertNotNull(response); // Проверка: что результат не null
+        assertEquals("access-token", response.getAccessToken()); // Проверка: что access токен совпадает
+        assertEquals("refresh-token", response.getRefreshToken()); // Проверка: что refresh токен совпадает
+        assertEquals(900000L, response.getExpiresIn()); // Проверка: что время жизни токена совпадает
         verify(userRepository).existsByLogin("newuser"); // Проверка: что проверка существования логина была вызвана
         verify(passwordEncoder).encode("password123"); // Проверка: что пароль был захеширован
         verify(userRepository).save(any(User.class)); // Проверка: что пользователь был сохранён в БД
+        verify(jwtTokenProvider).generateAccessToken("newuser", Role.ROLE_USER); // Проверка: что access токен был сгенерирован
+        verify(jwtTokenProvider).generateRefreshToken("newuser", Role.ROLE_USER); // Проверка: что refresh токен был сгенерирован
     }
 
     @Test
@@ -215,6 +233,8 @@ class AuthServiceTest {
         when(userRepository.existsByLogin("newuser")).thenReturn(false);
         // Когда кто-то вызовет passwordEncoder.encode("password123"), верни хеш пароля
         when(passwordEncoder.encode("password123")).thenReturn("$2a$10$encodedPassword");
+        // Мокируем вызов userServiceClient.createUser (не выбрасывает исключение)
+        doNothing().when(userServiceClient).createUser(anyString(), any(), any(), any());
 
         //when
         // Вызываем тестируемый метод регистрации пользователя

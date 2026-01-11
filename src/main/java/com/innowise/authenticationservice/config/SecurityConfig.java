@@ -4,14 +4,16 @@ import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+// CORS импорты закомментированы - CORS обрабатывается на уровне gateway-service
+// import org.springframework.web.cors.CorsConfiguration;
+// import org.springframework.web.cors.CorsConfigurationSource;
+// import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.innowise.authenticationservice.security.JwtTokenProvider;
 
 /**
@@ -34,8 +36,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // Настраиваем CORS (Cross-Origin Resource Sharing) для разрешения запросов с других доменов
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // CORS обрабатывается на уровне gateway-service, поэтому здесь явно отключаем
+                .cors(cors -> cors.disable())
                 // Отключаем CSRF защиту, так как REST API использует JWT токены, а не cookies
                 // CSRF защита нужна для защиты от подделки запросов при использовании сессий и cookies
                 .csrf(csrf -> csrf.disable())
@@ -44,16 +46,19 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Настраиваем правила авторизации для различных эндпоинтов
                 .authorizeHttpRequests(auth -> auth
+                        // Внутренний технический endpoint для синхронизации удаления пользователя (только для внутренних вызовов от user-service с API ключом)
+                        // Должен быть первым, чтобы не перехватывался общим правилом /auth/v1/**
+                        .requestMatchers(HttpMethod.DELETE, "/auth/v1/internal/sync/users/**").permitAll()
                         // Публичные эндпоинты - доступны без аутентификации
                         // /auth/v1/login - вход пользователя
                         // /auth/v1/register - регистрация нового пользователя
                         // /auth/v1/create-token - создание токена (для внутреннего использования)
                         // /auth/v1/refresh - обновление токена
                         .requestMatchers("/auth/v1/login", "/auth/v1/register", "/auth/v1/create-token", "/auth/v1/refresh").permitAll()
-                        // Эндпоинты мониторинга - требуют роль ADMIN
-                        // /actuator/health - проверка здоровья приложения
-                        // /actuator/info - информация о приложении
-                        .requestMatchers("/actuator/health", "/actuator/info").hasRole("ADMIN")
+                        // Эндпоинты мониторинга - публичные для health check
+                        // /actuator/health - проверка здоровья приложения (доступен без аутентификации)
+                        // /actuator/info - информация о приложении (доступен без аутентификации)
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // Все остальные эндпоинты /auth/v1/** требуют аутентификации
                         .requestMatchers("/auth/v1/**").authenticated()
                         // Любые другие запросы также требуют аутентификации
@@ -87,26 +92,19 @@ public class SecurityConfig {
     }
 
     /**
-     * Настраивает CORS (Cross-Origin Resource Sharing) для разрешения кросс-доменных HTTP-запросов.     
-     * CORS - это механизм безопасности браузеров, который позволяет веб-страницам делать запросы
-     * к серверу, находящемуся на другом домене, порту или протоколе. Без правильной настройки CORS
-     * браузер блокирует такие запросы из соображений безопасности.
+     * CORS настройки удалены - CORS обрабатывается на уровне gateway-service.
+     * Все запросы идут через gateway-service, который добавляет необходимые CORS заголовки.
+     * Это предотвращает дублирование заголовков Access-Control-Allow-Origin.
      */
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        // Разрешаем запросы с любых доменов (в production укажите конкретные домены для безопасности)
-        configuration.setAllowedOriginPatterns(List.of("*"));
-        // Разрешаем основные HTTP-методы для REST API
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        // Разрешаем все заголовки (включая Authorization для JWT токенов)
-        configuration.setAllowedHeaders(List.of("*"));
-        // Разрешаем отправку учетных данных (cookies, authorization headers) в кросс-доменных запросах
-        configuration.setAllowCredentials(true);
-
-        // Создаем источник конфигурации CORS и применяем настройки ко всем эндпоинтам ("/**")
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
+    // @Bean
+    // public CorsConfigurationSource corsConfigurationSource() {
+    //     CorsConfiguration configuration = new CorsConfiguration();
+    //     configuration.setAllowedOriginPatterns(List.of("*"));
+    //     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+    //     configuration.setAllowedHeaders(List.of("*"));
+    //     configuration.setAllowCredentials(true);
+    //     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    //     source.registerCorsConfiguration("/**", configuration);
+    //     return source;
+    // }
 }

@@ -22,7 +22,7 @@ public class UserServiceClient {
     private final String internalApiKey;
 
     public UserServiceClient(RestTemplate restTemplate,
-                             @Value("${user.service.base-url:http://localhost:8082}") String baseUrl,
+                             @Value("${user.service.base-url:http://user-service:8080}") String baseUrl,
                              @Value("${user.service.internal-api-key:}") String internalApiKey) {
         this.restTemplate = restTemplate;
         this.baseUrl = baseUrl;
@@ -34,7 +34,7 @@ public class UserServiceClient {
     /**
      * Создание пользователя в user-service при регистрации
      */
-    public void createUser(String email, String firstName, String lastName) {
+    public void createUser(String email, String firstName, String lastName, java.time.LocalDate birthDate) {
         if (baseUrl == null || baseUrl.isBlank() || internalApiKey == null || internalApiKey.isBlank()) {
             log.warn("User service URL or internal API key not configured. Skipping user creation in user-service.");
             return;
@@ -43,10 +43,10 @@ public class UserServiceClient {
         try {
             UserDto userDto = new UserDto();
             userDto.setEmail(email);
-            userDto.setName(firstName != null && !firstName.isBlank() ? firstName : "Unknown");
-            userDto.setSurname(lastName != null && !lastName.isBlank() ? lastName : "Unknown");
-            // Устанавливаем дату рождения по умолчанию (можно будет обновить позже)
-            userDto.setBirthDate(java.time.LocalDate.now().minusYears(18));
+            userDto.setFirstName(firstName != null && !firstName.isBlank() ? firstName : "Unknown");
+            userDto.setLastName(lastName != null && !lastName.isBlank() ? lastName : "Unknown");
+            // Используем переданную дату рождения или устанавливаем по умолчанию
+            userDto.setBirthDate(birthDate != null ? birthDate : java.time.LocalDate.now().minusYears(18));
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Content-Type", "application/json");
@@ -75,8 +75,8 @@ public class UserServiceClient {
     // DTO для создания пользователя в user-service
     public static class UserDto {
         private String email;
-        private String name;
-        private String surname;
+        private String firstName;
+        private String lastName;
         private java.time.LocalDate birthDate;
 
         public String getEmail() {
@@ -87,20 +87,20 @@ public class UserServiceClient {
             this.email = email;
         }
 
-        public String getName() {
-            return name;
+        public String getFirstName() {
+            return firstName;
         }
 
-        public void setName(String name) {
-            this.name = name;
+        public void setFirstName(String firstName) {
+            this.firstName = firstName;
         }
 
-        public String getSurname() {
-            return surname;
+        public String getLastName() {
+            return lastName;
         }
 
-        public void setSurname(String surname) {
-            this.surname = surname;
+        public void setLastName(String lastName) {
+            this.lastName = lastName;
         }
 
         public java.time.LocalDate getBirthDate() {
